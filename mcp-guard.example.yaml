@@ -1,0 +1,21 @@
+# MCP-Guard configuration
+# Copy to mcp-guard.yaml and customize
+
+servers:
+  # Example: proxy a local MCP server
+  filesystem:
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+  # Example: proxy with environment variables
+  github:
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+
+daemon:
+  log_level: info
+  shutdown_timeout: 30

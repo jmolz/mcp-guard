@@ -6,6 +6,9 @@ This file provides guidance to Claude Code when working with this repository.
 
 MCP-Guard is a security proxy daemon for the MCP (Model Context Protocol) ecosystem. It sits between MCP clients (Cursor, Claude Desktop, Claude Code, VS Code) and MCP servers, adding OAuth 2.1 authentication, rate limiting, PII detection, permission scoping, and audit logging to any MCP server — without modifying it. It operates on a **terminate, inspect, re-originate** architecture: MCP-Guard fully terminates the client connection, applies a security interceptor pipeline, then re-originates the request to the upstream server. Nothing passes through uninspected.
 
+- **Repository**: https://github.com/jmolz/mcp-guard
+- **SSH**: `git@github.com:jmolz/mcp-guard.git`
+
 ---
 
 ## Tech Stack
