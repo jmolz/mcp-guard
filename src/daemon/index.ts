@@ -9,6 +9,16 @@ import { createServerManager } from './server-manager.js';
 import { createProxyServer } from '../proxy/mcp-server.js';
 import { registerShutdownHandlers } from './shutdown.js';
 import { createLogger } from '../logger.js';
+import { createPipeline } from '../interceptors/pipeline.js';
+import { createAuthInterceptor } from '../interceptors/auth.js';
+import { createRateLimitInterceptor } from '../interceptors/rate-limit.js';
+import { createPermissionInterceptor } from '../interceptors/permissions.js';
+import { createRateLimitStore } from '../storage/rate-limit-store.js';
+import { createAuditStore } from '../audit/store.js';
+import { createAuditTap } from '../audit/tap.js';
+import { resolveIdentity } from '../identity/roles.js';
+import { filterToolsList, filterResourcesList } from '../proxy/capability-filter.js';
+import type { InterceptorContext } from '../interceptors/types.js';
 
 export interface DaemonHandle {
   shutdown(): Promise<void>;
@@ -57,16 +67,142 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
   }
   const proxyServer = createProxyServer(upstreamClients, logger);
 
-  // 7. Create socket server
+  // 7. Create interceptor pipeline
+  const rateLimitStore = createRateLimitStore(db);
+  const auditStore = createAuditStore(db);
+  const auditTap = createAuditTap(auditStore, logger, config);
+
+  const pipeline = createPipeline({
+    interceptors: [
+      createAuthInterceptor(config),
+      createRateLimitInterceptor(rateLimitStore, config),
+      createPermissionInterceptor(config),
+    ],
+    timeout: config.interceptors.timeout * 1000,
+    logger,
+  });
+
+  logger.info('Interceptor pipeline ready', {
+    interceptors: ['auth', 'rate-limit', 'permissions'],
+    timeout: config.interceptors.timeout,
+  });
+
+  // 8. Create socket server
   const socketServer = createSocketServer({
     socketPath: config.daemon.socket_path,
     daemonKey,
     logger,
     onConnection: (conn) => {
+      const identity = resolveIdentity(conn.uid, conn.pid, config);
+
       conn.onMessage(async (msg) => {
         if (msg.type === 'mcp') {
-          const response = await proxyServer.handleMessage(msg.data, msg.server);
-          conn.send({ type: 'mcp', data: response });
+          const method = msg.data.method ?? 'unknown';
+          const startTime = Date.now();
+
+          // Wrap entire handler in try/catch to ensure audit tap fires
+          // even on unexpected runtime errors (structural audit guarantee)
+          try {
+            const ctx: InterceptorContext = {
+              message: { method, params: msg.data.params },
+              server: msg.server,
+              identity,
+              direction: 'request',
+              metadata: { bridgeId: conn.id, timestamp: Date.now() },
+            };
+
+            // Run pipeline
+            const pipelineResult = await pipeline.execute(ctx);
+            const latencyMs = Date.now() - startTime;
+
+            // Audit tap records everything (including blocks)
+            auditTap.record({
+              bridgeId: conn.id,
+              server: msg.server,
+              method,
+              direction: 'request',
+              identity,
+              toolOrResource: extractToolOrResource(msg.data),
+              pipelineResult,
+              latencyMs,
+            });
+
+            if (!pipelineResult.allowed) {
+              const blockReason = pipelineResult.decisions.find(
+                (d) => d.decision.action === 'BLOCK',
+              );
+              conn.send({
+                type: 'mcp',
+                data: {
+                  jsonrpc: '2.0',
+                  id: msg.data.id,
+                  error: {
+                    code: -32600,
+                    message: blockReason?.decision.action === 'BLOCK'
+                      ? blockReason.decision.reason
+                      : 'Blocked by security policy',
+                  },
+                },
+              });
+              return;
+            }
+
+            // Forward to upstream (with potentially modified params)
+            const upstreamMsg = pipelineResult.finalParams
+              ? { ...msg.data, params: pipelineResult.finalParams }
+              : msg.data;
+            const response = await proxyServer.handleMessage(upstreamMsg, msg.server);
+
+            // Apply capability filtering to list responses
+            if (msg.data.method === 'tools/list' && response.result) {
+              const result = response.result as { tools?: Array<{ name: string }> };
+              const serverConfig = config.servers[msg.server];
+              if (result.tools && serverConfig) {
+                result.tools = filterToolsList(result.tools, serverConfig, identity, config);
+              }
+            }
+
+            if (msg.data.method === 'resources/list' && response.result) {
+              const result = response.result as { resources?: Array<{ uri: string }> };
+              const serverConfig = config.servers[msg.server];
+              if (result.resources && serverConfig) {
+                result.resources = filterResourcesList(result.resources, serverConfig, identity, config);
+              }
+            }
+
+            conn.send({ type: 'mcp', data: response });
+          } catch (err) {
+            const latencyMs = Date.now() - startTime;
+            logger.error('Message handler failed', { error: String(err), method });
+
+            // Audit tap MUST fire even on unexpected errors
+            auditTap.record({
+              bridgeId: conn.id,
+              server: msg.server,
+              method,
+              direction: 'request',
+              identity,
+              toolOrResource: extractToolOrResource(msg.data),
+              pipelineResult: {
+                allowed: false,
+                decisions: [{
+                  interceptor: 'internal',
+                  decision: { action: 'BLOCK', reason: `Internal error: ${String(err)}` },
+                  durationMs: latencyMs,
+                }],
+              },
+              latencyMs,
+            });
+
+            conn.send({
+              type: 'mcp',
+              data: {
+                jsonrpc: '2.0',
+                id: msg.data.id,
+                error: { code: -32603, message: 'Internal error' },
+              },
+            });
+          }
         }
       });
     },
@@ -74,7 +210,7 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
 
   await socketServer.listen();
 
-  // 8. Register shutdown handlers (single unified shutdown path)
+  // 9. Register shutdown handlers (single unified shutdown path)
   const shutdownHandle = registerShutdownHandlers({
     socketServer,
     serverManager,
@@ -95,4 +231,14 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
       return shutdownHandle.shutdown();
     },
   };
+}
+
+function extractToolOrResource(data: { method?: string; params?: Record<string, unknown> }): string | undefined {
+  if (data.method === 'tools/call') {
+    return data.params?.['name'] as string | undefined;
+  }
+  if (data.method === 'resources/read') {
+    return data.params?.['uri'] as string | undefined;
+  }
+  return undefined;
 }

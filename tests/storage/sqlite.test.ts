@@ -50,6 +50,8 @@ describe('SQLite storage', () => {
 
     expect(tables).toContain('schema_migrations');
     expect(tables).toContain('daemon_state');
+    expect(tables).toContain('audit_logs');
+    expect(tables).toContain('rate_limits');
     db.close();
   });
 
@@ -59,7 +61,7 @@ describe('SQLite storage', () => {
     runMigrations(db); // Run twice — should not throw
 
     const count = db.prepare('SELECT COUNT(*) as c FROM schema_migrations').get() as { c: number };
-    expect(count.c).toBe(2); // 001 and 002
+    expect(count.c).toBe(4); // 001, 002, 003, 004
     db.close();
   });
 

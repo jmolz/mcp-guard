@@ -5,6 +5,8 @@ import { loadConfig } from './config/loader.js';
 import { startDaemon } from './daemon/index.js';
 import { startBridge } from './bridge/index.js';
 import { isDaemonRunning } from './daemon/auto-start.js';
+import { openDatabase } from './storage/sqlite.js';
+import { queryAuditLogs, formatAuditRow } from './audit/query.js';
 
 const program = new Command()
   .name('mcp-guard')
@@ -151,5 +153,61 @@ program
       process.exit(1);
     }
   });
+
+program
+  .command('logs')
+  .description('Query audit logs')
+  .option('-c, --config <path>', 'Path to config file')
+  .option('-s, --server <name>', 'Filter by server name')
+  .option('--last <duration>', 'Time range (e.g., 1h, 24h, 7d)')
+  .option('-u, --user <name>', 'Filter by username')
+  .option('-m, --method <method>', 'Filter by MCP method')
+  .option('-t, --type <type>', 'Filter by type (allow/block)')
+  .option('-l, --limit <count>', 'Maximum results', '100')
+  .action(
+    async (opts: {
+      config?: string;
+      server?: string;
+      last?: string;
+      user?: string;
+      method?: string;
+      type?: string;
+      limit: string;
+    }) => {
+      try {
+        const config = await loadConfig(opts.config);
+        const dbPath = join(config.daemon.home, 'mcp-guard.db');
+        const db = openDatabase({ path: dbPath });
+
+        const rows = queryAuditLogs(db, {
+          server: opts.server,
+          last: opts.last,
+          user: opts.user,
+          method: opts.method,
+          type: opts.type as 'allow' | 'block' | undefined,
+          limit: parseInt(opts.limit, 10),
+        });
+
+        if (rows.length === 0) {
+          console.log('No audit log entries found');
+        } else {
+          for (const row of rows) {
+            console.log(formatAuditRow(row));
+          }
+          console.log(`\n${rows.length} entries`);
+        }
+
+        db.close();
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === 'SQLITE_CANTOPEN' || code === 'ENOENT') {
+          console.log('No audit database found — is the daemon running?');
+        } else {
+          console.error(`Failed to query logs: ${err}`);
+          process.exit(1);
+        }
+      }
+    },
+  );
 
 program.parse();
