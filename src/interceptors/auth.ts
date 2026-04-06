@@ -1,3 +1,4 @@
+import { timingSafeEqual, createHash } from 'node:crypto';
 import type { McpGuardConfig } from '../config/schema.js';
 import type { Interceptor, InterceptorContext, InterceptorDecision } from './types.js';
 
@@ -14,6 +15,13 @@ import type { Interceptor, InterceptorContext, InterceptorDecision } from './typ
  * per-role permissions/rate-limits. Full role→policy resolution is Phase 4.
  */
 export function createAuthInterceptor(config: McpGuardConfig): Interceptor {
+  // Pre-hash configured API keys at creation time for constant-time comparison
+  const hashedKeys = new Map<string, { roles: string[] }>();
+  for (const [key, keyConfig] of Object.entries(config.auth.api_keys)) {
+    const hash = createHash('sha256').update(key).digest('hex');
+    hashedKeys.set(hash, keyConfig);
+  }
+
   return {
     name: 'auth',
 
@@ -22,7 +30,7 @@ export function createAuthInterceptor(config: McpGuardConfig): Interceptor {
         return validateOsIdentity(ctx);
       }
 
-      return validateApiKey(ctx, config);
+      return validateApiKey(ctx, hashedKeys);
     },
   };
 }
@@ -46,7 +54,7 @@ function validateOsIdentity(ctx: InterceptorContext): InterceptorDecision {
 
 function validateApiKey(
   ctx: InterceptorContext,
-  config: McpGuardConfig,
+  hashedKeys: Map<string, { roles: string[] }>,
 ): InterceptorDecision {
   const apiKey = ctx.message.params?.['_api_key'] as string | undefined;
 
@@ -54,8 +62,19 @@ function validateApiKey(
     return { action: 'BLOCK', reason: 'API key required but not provided', code: 'AUTH_MISSING' };
   }
 
-  const keyConfig = config.auth.api_keys[apiKey];
-  if (!keyConfig) {
+  // Constant-time comparison: hash the presented key and compare against all
+  // pre-hashed keys using timingSafeEqual to prevent timing oracles
+  const presentedHash = createHash('sha256').update(apiKey).digest();
+  let matched = false;
+  for (const [storedHash] of hashedKeys) {
+    const storedBuf = Buffer.from(storedHash, 'hex');
+    if (presentedHash.length === storedBuf.length && timingSafeEqual(presentedHash, storedBuf)) {
+      matched = true;
+      break;
+    }
+  }
+
+  if (!matched) {
     return { action: 'BLOCK', reason: 'Invalid API key', code: 'AUTH_INVALID' };
   }
 

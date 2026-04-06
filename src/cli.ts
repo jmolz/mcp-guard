@@ -174,10 +174,14 @@ program
       type?: string;
       limit: string;
     }) => {
+      let db: ReturnType<typeof openDatabase> | undefined;
       try {
         const config = await loadConfig(opts.config);
         const dbPath = join(config.daemon.home, 'mcp-guard.db');
-        const db = openDatabase({ path: dbPath });
+        db = openDatabase({ path: dbPath });
+
+        const parsedLimit = parseInt(opts.limit, 10);
+        const limit = Number.isNaN(parsedLimit) || parsedLimit < 1 ? 100 : Math.min(parsedLimit, 10000);
 
         const rows = queryAuditLogs(db, {
           server: opts.server,
@@ -185,7 +189,7 @@ program
           user: opts.user,
           method: opts.method,
           type: opts.type as 'allow' | 'block' | undefined,
-          limit: parseInt(opts.limit, 10),
+          limit,
         });
 
         if (rows.length === 0) {
@@ -196,8 +200,6 @@ program
           }
           console.log(`\n${rows.length} entries`);
         }
-
-        db.close();
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'SQLITE_CANTOPEN' || code === 'ENOENT') {
@@ -206,6 +208,8 @@ program
           console.error(`Failed to query logs: ${err}`);
           process.exit(1);
         }
+      } finally {
+        db?.close();
       }
     },
   );

@@ -20,6 +20,10 @@ export function createAuditTap(
 ): AuditTap {
   return {
     record(entry: AuditEntry): void {
+      if (!config.audit.enabled) {
+        return;
+      }
+
       // Write to SQLite
       try {
         store.write(entry);

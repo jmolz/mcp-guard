@@ -26,6 +26,11 @@ export function createRateLimitStore(db: Database.Database): RateLimitStore {
       updated_at = excluded.updated_at
   `);
 
+  // Update tokens and updated_at only — preserves last_refill for denied requests
+  const updateTokensStmt = db.prepare(`
+    UPDATE rate_limits SET tokens = ?, updated_at = datetime('now') WHERE key = ?
+  `);
+
   const selectStmt = db.prepare(`
     SELECT tokens, max_tokens, refill_rate, last_refill
     FROM rate_limits WHERE key = ?
@@ -59,8 +64,9 @@ export function createRateLimitStore(db: Database.Database): RateLimitStore {
       );
 
       if (refilled < 1) {
-        // Rate limited — update refill state but don't consume
-        upsertStmt.run(key, refilled, config.maxTokens, config.refillRate);
+        // Rate limited — update token count but preserve last_refill
+        // so the refill clock continues accumulating correctly
+        updateTokensStmt.run(refilled, key);
         return false;
       }
 

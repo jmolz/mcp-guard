@@ -135,7 +135,8 @@ export function createAuditStore(db: Database.Database): AuditStore {
     },
 
     cleanup(olderThanDays: number): number {
-      const result = cleanupStmt.run(`-${olderThanDays} days`);
+      const days = Math.max(1, Math.abs(olderThanDays));
+      const result = cleanupStmt.run(`-${days} days`);
       return result.changes;
     },
   };

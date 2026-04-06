@@ -5,8 +5,11 @@ import type { ResolvedIdentity } from '../interceptors/types.js';
 /**
  * Resolve OS identity (uid/pid) into a username and role list.
  *
- * In OS auth mode (Phase 2), roles come from config.auth.roles keyed by username.
- * If the user has no explicit role mapping, they get ['default'].
+ * Role resolution: config.auth.roles is keyed by role name, each containing
+ * permissions and rate_limit. A username is assigned a role if the role key
+ * matches their username (Phase 2 convention). If no match, ['default'].
+ *
+ * Phase 4 will add explicit user→role mappings via OAuth claims.
  */
 export function resolveIdentity(
   uid: number,
@@ -14,10 +17,7 @@ export function resolveIdentity(
   config: McpGuardConfig,
 ): ResolvedIdentity {
   const username = resolveUsername(uid);
-
-  // Check if this username has a role definition in config
-  const hasRoleConfig = username in config.auth.roles;
-  const roles = hasRoleConfig ? [username] : ['default'];
+  const roles = resolveRoles(username, config);
 
   return { uid, pid, username, roles };
 }
@@ -32,4 +32,17 @@ function resolveUsername(uid: number): string {
     // userInfo() can fail on some platforms
   }
   return `uid:${uid}`;
+}
+
+function resolveRoles(username: string, config: McpGuardConfig): string[] {
+  // Collect all role names where the username matches the role key
+  // Phase 2 convention: role keys that match the username are assigned
+  const matchedRoles: string[] = [];
+  for (const roleName of Object.keys(config.auth.roles)) {
+    if (roleName === username) {
+      matchedRoles.push(roleName);
+    }
+  }
+
+  return matchedRoles.length > 0 ? matchedRoles : ['default'];
 }

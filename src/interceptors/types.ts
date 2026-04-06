@@ -1,5 +1,3 @@
-export type InterceptorAction = 'PASS' | 'MODIFY' | 'BLOCK';
-
 export type InterceptorDecision =
   | { action: 'PASS' }
   | { action: 'MODIFY'; params: Record<string, unknown> }

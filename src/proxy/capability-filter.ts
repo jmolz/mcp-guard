@@ -6,6 +6,7 @@ import { matchesAny } from '../interceptors/permissions.js';
  * Filter tools/list response to remove denied tools.
  * Uses the same matching logic as the permission interceptor.
  */
+// _identity and _config are scaffolding for Phase 4 role-based capability filtering
 export function filterToolsList(
   tools: Array<{ name: string; [key: string]: unknown }>,
   serverConfig: ServerConfig,

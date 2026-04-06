@@ -1,7 +1,29 @@
 import type { McpGuardConfig } from '../config/schema.js';
 import type { Interceptor, InterceptorContext, InterceptorDecision } from './types.js';
 
+// Max input length for regex/glob matching to prevent ReDoS
+const MAX_MATCH_INPUT_LENGTH = 1024;
+
+// Module-level cache for compiled regex patterns (auto-populates on first use)
+const patternCache = new Map<string, RegExp>();
+
 export function createPermissionInterceptor(config: McpGuardConfig): Interceptor {
+  // Pre-compile all patterns at creation time into the module cache
+  for (const serverConfig of Object.values(config.servers)) {
+    const allPatterns = [
+      ...serverConfig.policy.permissions.denied_tools,
+      ...(serverConfig.policy.permissions.allowed_tools ?? []),
+      ...serverConfig.policy.permissions.denied_resources,
+      ...(serverConfig.policy.permissions.allowed_resources ?? []),
+    ];
+    for (const pattern of allPatterns) {
+      if (!patternCache.has(pattern)) {
+        const compiled = compilePattern(pattern);
+        if (compiled) patternCache.set(pattern, compiled);
+      }
+    }
+  }
+
   return {
     name: 'permissions',
 
@@ -16,10 +38,9 @@ export function createPermissionInterceptor(config: McpGuardConfig): Interceptor
       if (ctx.message.method === 'tools/call') {
         const toolName = ctx.message.params?.['name'] as string | undefined;
         if (!toolName) {
-          return { action: 'PASS' };
+          return { action: 'BLOCK', reason: 'tools/call missing required tool name', code: 'MALFORMED_REQUEST' };
         }
 
-        // Check denied_tools first — deny always wins
         if (matchesAny(toolName, permissions.denied_tools)) {
           return {
             action: 'BLOCK',
@@ -28,7 +49,6 @@ export function createPermissionInterceptor(config: McpGuardConfig): Interceptor
           };
         }
 
-        // If allowed_tools is defined, tool must be in the list
         if (permissions.allowed_tools && !matchesAny(toolName, permissions.allowed_tools)) {
           return {
             action: 'BLOCK',
@@ -43,7 +63,7 @@ export function createPermissionInterceptor(config: McpGuardConfig): Interceptor
       if (ctx.message.method === 'resources/read') {
         const uri = ctx.message.params?.['uri'] as string | undefined;
         if (!uri) {
-          return { action: 'PASS' };
+          return { action: 'BLOCK', reason: 'resources/read missing required URI', code: 'MALFORMED_REQUEST' };
         }
 
         if (matchesAny(uri, permissions.denied_resources)) {
@@ -72,9 +92,6 @@ export function createPermissionInterceptor(config: McpGuardConfig): Interceptor
   };
 }
 
-// Max input length for regex/glob matching to prevent ReDoS
-const MAX_MATCH_INPUT_LENGTH = 1024;
-
 /**
  * Check if a value matches any pattern in the list.
  * Supports: exact match, glob wildcards (*), regex (prefixed with ^).
@@ -84,33 +101,35 @@ export function matchesAny(value: string, patterns: string[]): boolean {
 }
 
 function matchesPattern(value: string, pattern: string): boolean {
-  // Regex pattern (starts with ^)
-  if (pattern.startsWith('^')) {
-    // Cap input length to prevent ReDoS on adversarial tool/resource names
+  if (pattern.startsWith('^') || pattern.includes('*')) {
     if (value.length > MAX_MATCH_INPUT_LENGTH) {
       return false;
     }
-    try {
-      return new RegExp(pattern).test(value);
-    } catch {
-      return false;
-    }
+    // Use cached compiled pattern, or compile on-demand for uncached patterns
+    const compiled = patternCache.get(pattern) ?? compileAndCache(pattern);
+    return compiled ? compiled.test(value) : false;
   }
 
-  // Glob pattern (contains *)
-  if (pattern.includes('*')) {
-    if (value.length > MAX_MATCH_INPUT_LENGTH) {
-      return false;
-    }
-    // Convert glob to regex with non-greedy matching to limit backtracking
-    const regexStr = '^' + pattern.replace(/[.+?{}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$';
-    try {
-      return new RegExp(regexStr).test(value);
-    } catch {
-      return false;
-    }
-  }
-
-  // Exact match
   return value === pattern;
+}
+
+function compilePattern(pattern: string): RegExp | null {
+  try {
+    if (pattern.startsWith('^')) {
+      return new RegExp(pattern);
+    }
+    if (pattern.includes('*')) {
+      const regexStr = '^' + pattern.replace(/[.+?{}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$';
+      return new RegExp(regexStr);
+    }
+  } catch {
+    // Invalid regex — skip
+  }
+  return null;
+}
+
+function compileAndCache(pattern: string): RegExp | null {
+  const compiled = compilePattern(pattern);
+  if (compiled) patternCache.set(pattern, compiled);
+  return compiled;
 }

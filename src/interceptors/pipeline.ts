@@ -122,6 +122,8 @@ function createTimeout(ms: number, name: string): { promise: Promise<never>; cle
   const promise = new Promise<never>((_, reject) => {
     timerId = setTimeout(() => reject(new Error(`Interceptor '${name}' timed out after ${ms}ms`)), ms);
   });
+  // Suppress unhandled rejection if the interceptor resolves before the timer
+  promise.catch(() => {});
   return {
     promise,
     clear: () => clearTimeout(timerId),
