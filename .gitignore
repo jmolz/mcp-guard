@@ -27,3 +27,13 @@ Thumbs.db
 
 # Remember/session logs (local only)
 .remember/
+
+# Claude Code plugin framework files (not project source)
+.claude/commands/
+.claude/docs/
+.claude/hooks/
+.claude/skills/
+.claude/templates/
+.claude/rules/_example-frontend.md
+.claude/settings.local.json
+.claude/.DS_Store
