@@ -13,11 +13,14 @@ import { createPipeline } from '../interceptors/pipeline.js';
 import { createAuthInterceptor } from '../interceptors/auth.js';
 import { createRateLimitInterceptor } from '../interceptors/rate-limit.js';
 import { createPermissionInterceptor } from '../interceptors/permissions.js';
+import { createSamplingGuardInterceptor } from '../interceptors/sampling-guard.js';
+import { createPiiInterceptor } from '../interceptors/pii-detect.js';
+import { createPIIRegistry } from '../pii/registry.js';
 import { createRateLimitStore } from '../storage/rate-limit-store.js';
 import { createAuditStore } from '../audit/store.js';
 import { createAuditTap } from '../audit/tap.js';
 import { resolveIdentity } from '../identity/roles.js';
-import { filterToolsList, filterResourcesList } from '../proxy/capability-filter.js';
+import { filterToolsList, filterResourcesList, filterCapabilities } from '../proxy/capability-filter.js';
 import type { InterceptorContext } from '../interceptors/types.js';
 
 export interface DaemonHandle {
@@ -72,18 +75,30 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
   const auditStore = createAuditStore(db);
   const auditTap = createAuditTap(auditStore, logger, config);
 
+  const piiRegistry = createPIIRegistry(config.pii);
+
   const pipeline = createPipeline({
     interceptors: [
       createAuthInterceptor(config),
       createRateLimitInterceptor(rateLimitStore, config),
       createPermissionInterceptor(config),
+      createSamplingGuardInterceptor(config),
+      createPiiInterceptor(piiRegistry, config),
+    ],
+    timeout: config.interceptors.timeout * 1000,
+    logger,
+  });
+
+  const responsePipeline = createPipeline({
+    interceptors: [
+      createPiiInterceptor(piiRegistry, config),
     ],
     timeout: config.interceptors.timeout * 1000,
     logger,
   });
 
   logger.info('Interceptor pipeline ready', {
-    interceptors: ['auth', 'rate-limit', 'permissions'],
+    interceptors: ['auth', 'rate-limit', 'permissions', 'sampling-guard', 'pii-detect'],
     timeout: config.interceptors.timeout,
   });
 
@@ -152,6 +167,68 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
               ? { ...msg.data, params: pipelineResult.finalParams }
               : msg.data;
             const response = await proxyServer.handleMessage(upstreamMsg, msg.server);
+
+            // Run response-direction PII scanning on result AND error payloads
+            // No outer pii.enabled guard — interceptor checks internally, audit tap must always fire
+            const responseContent = response.result ?? response.error;
+            if (responseContent) {
+              const responseCtx: InterceptorContext = {
+                message: { method, params: responseContent as Record<string, unknown> },
+                server: msg.server,
+                identity,
+                direction: 'response',
+                metadata: { bridgeId: conn.id, timestamp: Date.now() },
+              };
+
+              const responseResult = await responsePipeline.execute(responseCtx);
+
+              auditTap.record({
+                bridgeId: conn.id,
+                server: msg.server,
+                method,
+                direction: 'response',
+                identity,
+                toolOrResource: extractToolOrResource(msg.data),
+                pipelineResult: responseResult,
+                latencyMs: Date.now() - startTime,
+              });
+
+              if (!responseResult.allowed) {
+                conn.send({
+                  type: 'mcp',
+                  data: {
+                    jsonrpc: '2.0',
+                    id: msg.data.id,
+                    error: { code: -32600, message: 'Response blocked by PII policy' },
+                  },
+                });
+                return;
+              }
+
+              if (responseResult.finalParams) {
+                if (response.result) {
+                  response.result = responseResult.finalParams;
+                } else if (response.error) {
+                  // Apply redacted fields back to the typed error structure
+                  const redacted = responseResult.finalParams;
+                  if (typeof redacted['message'] === 'string') {
+                    response.error.message = redacted['message'];
+                  }
+                  if ('data' in redacted) {
+                    response.error.data = redacted['data'];
+                  }
+                }
+              }
+            }
+
+            // Filter sampling capability from initialize response
+            if (msg.data.method === 'initialize' && response.result) {
+              const result = response.result as { capabilities?: Record<string, unknown> };
+              const serverConfig = config.servers[msg.server];
+              if (result.capabilities && serverConfig) {
+                result.capabilities = filterCapabilities(result.capabilities, serverConfig);
+              }
+            }
 
             // Apply capability filtering to list responses
             if (msg.data.method === 'tools/list' && response.result) {

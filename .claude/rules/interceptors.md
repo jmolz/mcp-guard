@@ -8,7 +8,7 @@ paths:
 
 ## Pipeline Execution Contract
 
-- Fixed order: Auth → RateLimit → Permissions → PII Detect (request), PII Detect (response)
+- Fixed order: Auth → RateLimit → Permissions → SamplingGuard → PII Detect (request pipeline). Response pipeline: PII Detect only (on both result and error payloads)
 - Each interceptor implements a single interface returning `PASS`, `MODIFY`, or `BLOCK`
 - If an interceptor throws: the pipeline catches it and returns `BLOCK` (fail-closed)
 - If an interceptor exceeds its timeout: the pipeline returns `BLOCK` (fail-closed)
@@ -66,7 +66,20 @@ Interceptors receive the context and must not mutate it directly — return a de
 ## PII Detection
 
 - `PIIDetector` is a pluggable interface — the built-in regex detector is one implementation
-- Detectors return `PIIMatch[]` with type, value, confidence, and span
+- Detectors return `PIIMatch[]` with type, value, confidence, and span internally
+- `ScanResult.matches` uses `PIIMatchSafe` (no `value` field) — the value is stripped at the `scanAndRedact` boundary and must never propagate beyond it
 - Confidence threshold is configurable (default 0.8)
 - The redactor replaces matched spans — the original value is discarded immediately, never stored
-- Response scanning defaults to buffered mode (accumulate full response before scanning)
+- Response scanning runs on BOTH `response.result` and `response.error` payloads
+- Content exceeding 1MB → BLOCK (fail-closed, never pass uninspected content)
+- Input length capped at `MAX_CONTENT_LENGTH` (64KB) at the registry scan level for all detectors (prevents ReDoS in custom patterns)
+- Scan-first-then-redact: scan without redaction to discover matches, determine action, only compute redacted output when action is `redact` (avoids unnecessary deep cloning for block/warn cases)
+- Custom PII type `actions` from `custom_types[*].actions` are pre-merged into the action map at interceptor creation time — they are NOT looked up at scan time via a fallback
+- `PipelineResult.finalParams` must NEVER be persisted to the audit store — it may contain redacted content that creates data retention concerns
+
+## Sampling Guard
+
+- Blocks `sampling/createMessage` unless `serverConfig.policy.sampling.enabled` is explicitly `true`
+- Unknown servers → BLOCK (fail-closed)
+- Non-sampling methods always pass through
+- Runs BEFORE PII detection in the pipeline (Auth → RateLimit → Permissions → SamplingGuard → PII)

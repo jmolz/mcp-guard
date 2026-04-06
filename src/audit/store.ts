@@ -9,6 +9,9 @@ export interface AuditEntry {
   identity: ResolvedIdentity;
   toolOrResource?: string;
   paramsSummary?: string;
+  /** SECURITY: Only `decisions` from pipelineResult is serialized to the DB.
+   *  `finalParams` is intentionally NOT persisted — it may contain redacted content
+   *  that, if stored, would create a PII data retention concern. */
   pipelineResult: PipelineResult;
   latencyMs?: number;
 }
@@ -82,6 +85,7 @@ export function createAuditStore(db: Database.Database): AuditStore {
             name: d.interceptor,
             action: d.decision.action,
             reason: d.decision.action === 'BLOCK' ? d.decision.reason : undefined,
+            metadata: d.decision.metadata,
             durationMs: d.durationMs,
           })),
         ),

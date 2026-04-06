@@ -56,10 +56,15 @@ Every decision point defaults to BLOCK:
 ## PII Handling
 
 - **Redacted values are immediately discarded** — they must not exist in any variable, log, or database after redaction
-- Audit log records: PII type, action taken, span location — never the original value
+- `ScanResult.matches` returns `PIIMatchSafe` (no `value` field) — the type system structurally prevents PII value propagation beyond the redactor
+- Audit log records: PII type, action taken — never the original value. The `metadata` field on `InterceptorDecision` carries `piiDetections: [{type, action}]` only
+- `PipelineResult.finalParams` is intentionally NOT persisted to the audit store — it may contain redacted content
 - The `Redactor` returns a new string; it must not mutate the input
 - PII patterns must not be overly broad — false positives that block legitimate traffic are a usability bug
 - Credit card detection must include Luhn validation (regex alone is insufficient)
+- Content exceeding 1MB → BLOCK (fail-closed). Never pass uninspected content through
+- Response PII scanning covers both `response.result` and `response.error` payloads — error messages can echo PII
+- Custom PII type actions are pre-merged into the action map at interceptor creation; they don't fall back to permissive defaults
 
 ## Permission Scoping
 

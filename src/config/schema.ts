@@ -25,6 +25,9 @@ export const policySchema = z.object({
   rate_limit: rateLimitSchema,
   sampling: z.object({
     enabled: z.boolean().default(false),
+    max_tokens: z.number().min(1).optional(),
+    rate_limit: z.number().min(1).optional(),
+    audit: z.enum(['basic', 'verbose']).default('basic'),
   }).default({}),
 }).default({});
 
@@ -61,6 +64,33 @@ export const interceptorConfigSchema = z.object({
   timeout_action: z.enum(['block']).default('block'),
 }).default({});
 
+const piiActionSchema = z.enum(['block', 'redact', 'warn']);
+
+const piiTypeActionsSchema = z.object({
+  request: piiActionSchema.default('redact'),
+  response: piiActionSchema.default('warn'),
+});
+
+const customPiiTypeSchema = z.object({
+  label: z.string(),
+  patterns: z.array(z.object({ regex: z.string() })).min(1),
+  actions: piiTypeActionsSchema,
+});
+
+export const piiSchema = z.object({
+  enabled: z.boolean().default(true),
+  confidence_threshold: z.number().min(0).max(1).default(0.8),
+  actions: z.record(z.string(), piiTypeActionsSchema).default({
+    email: { request: 'redact', response: 'warn' },
+    phone: { request: 'redact', response: 'warn' },
+    ssn: { request: 'block', response: 'redact' },
+    credit_card: { request: 'block', response: 'redact' },
+    aws_key: { request: 'redact', response: 'redact' },
+    github_token: { request: 'redact', response: 'redact' },
+  }),
+  custom_types: z.record(z.string(), customPiiTypeSchema).default({}),
+}).default({});
+
 export const auditSchema = z.object({
   enabled: z.boolean().default(true),
   stdout: z.boolean().default(true),
@@ -72,6 +102,7 @@ export const configSchema = z.object({
   daemon: daemonSchema.default({}),
   auth: authSchema,
   interceptors: interceptorConfigSchema,
+  pii: piiSchema,
   audit: auditSchema,
 });
 
@@ -82,4 +113,6 @@ export type PolicyConfig = z.infer<typeof policySchema>;
 export type PermissionsConfig = z.infer<typeof permissionsSchema>;
 export type RateLimitConfig = z.infer<typeof rateLimitSchema>;
 export type AuthConfig = z.infer<typeof authSchema>;
+export type PIIConfig = z.infer<typeof piiSchema>;
+export type SamplingConfig = z.infer<typeof policySchema>['sampling'];
 export type AuditConfig = z.infer<typeof auditSchema>;

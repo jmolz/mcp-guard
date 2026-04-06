@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterToolsList, filterResourcesList } from '../../src/proxy/capability-filter.js';
+import { filterToolsList, filterResourcesList, filterCapabilities } from '../../src/proxy/capability-filter.js';
 import { configSchema, type ServerConfig } from '../../src/config/schema.js';
 import type { ResolvedIdentity } from '../../src/interceptors/types.js';
 
@@ -94,5 +94,36 @@ describe('filterResourcesList', () => {
 
     const filtered = filterResourcesList(resources, serverConfig, identity, makeConfig());
     expect(filtered.map((r) => r.uri)).toEqual(['public://data']);
+  });
+});
+
+describe('filterCapabilities', () => {
+  it('removes sampling capability when sampling disabled', () => {
+    const serverConfig = makeServerConfig();
+    const capabilities = { tools: {}, sampling: { supported: true } };
+    const result = filterCapabilities(capabilities, serverConfig);
+    expect(result).not.toHaveProperty('sampling');
+    expect(result).toHaveProperty('tools');
+  });
+
+  it('preserves sampling capability when sampling enabled', () => {
+    const serverConfig = makeServerConfig({ sampling: { enabled: true } });
+    const capabilities = { tools: {}, sampling: { supported: true } };
+    const result = filterCapabilities(capabilities, serverConfig);
+    expect(result).toHaveProperty('sampling');
+  });
+
+  it('returns capabilities unchanged when no sampling key exists', () => {
+    const serverConfig = makeServerConfig();
+    const capabilities = { tools: {}, resources: {} };
+    const result = filterCapabilities(capabilities, serverConfig);
+    expect(result).toEqual({ tools: {}, resources: {} });
+  });
+
+  it('preserves other capabilities when sampling is removed', () => {
+    const serverConfig = makeServerConfig();
+    const capabilities = { tools: { list: true }, resources: {}, sampling: {} };
+    const result = filterCapabilities(capabilities, serverConfig);
+    expect(result).toEqual({ tools: { list: true }, resources: {} });
   });
 });

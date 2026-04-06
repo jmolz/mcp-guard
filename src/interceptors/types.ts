@@ -1,7 +1,7 @@
 export type InterceptorDecision =
-  | { action: 'PASS' }
-  | { action: 'MODIFY'; params: Record<string, unknown> }
-  | { action: 'BLOCK'; reason: string; code?: string };
+  | { action: 'PASS'; metadata?: Record<string, unknown> }
+  | { action: 'MODIFY'; params: Record<string, unknown>; metadata?: Record<string, unknown> }
+  | { action: 'BLOCK'; reason: string; code?: string; metadata?: Record<string, unknown> };
 
 export interface InterceptorContext {
   /** The MCP JSON-RPC message */

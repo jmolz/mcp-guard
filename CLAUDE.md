@@ -83,10 +83,10 @@ mcp-guard/
 │   │   ├── pii-detect.ts        # PII detection interceptor
 │   │   └── sampling-guard.ts    # Sampling/createMessage policy
 │   ├── pii/                     # PII detection system
-│   │   ├── detector.ts          # PIIDetector interface
-│   │   ├── regex-detector.ts    # Built-in regex detector
-│   │   ├── registry.ts          # Detector registry and execution
-│   │   └── redactor.ts          # Redaction logic
+│   │   ├── types.ts             # PIIDetector interface, PIIMatch, PIIMatchSafe, PIIAction
+│   │   ├── regex-detector.ts    # Built-in regex detector (email, phone, SSN, CC+Luhn, AWS, GitHub)
+│   │   ├── registry.ts          # Detector registry (built-in + custom, confidence filtering)
+│   │   └── redactor.ts          # Span-based redaction, structured object scanning
 │   ├── audit/                   # Audit logging
 │   │   ├── tap.ts               # Structural audit tap (observer, not middleware)
 │   │   ├── store.ts             # SQLite audit storage
@@ -242,7 +242,7 @@ When working on specific areas, read the corresponding reference:
 
 ### Architecture
 
-- **Interceptor order is fixed**: Auth → RateLimit → Permissions → PII Detect. This order is not configurable.
+- **Interceptor order is fixed**: Auth → RateLimit → Permissions → SamplingGuard → PII Detect. This order is not configurable. A separate response pipeline runs PII Detect only on upstream responses (including error payloads).
 - **Audit tap is not an interceptor**: It observes all messages (including blocked ones) from outside the chain.
 - **Three decisions only**: Interceptors return `PASS`, `MODIFY`, or `BLOCK`. No other outcomes.
 - **Custom interceptors are sandboxed**: They can only modify `params`/`content`. Mutations to tool names, methods, or resource URIs are rejected by the pipeline runner.
@@ -258,4 +258,4 @@ When working on specific areas, read the corresponding reference:
 
 ### Implementation Phases
 
-The PRD defines 5 phases. Current phase: **Phase 3 (PII Detection + Sampling Guard)**. Phase 1 (Foundation) and Phase 2 (Interceptor Pipeline + Auth) are complete — daemon, bridge, proxy, config, CLI, interceptor pipeline (auth, rate-limit, permissions), capability filtering, audit system, and full E2E test suite are working. See `.claude/PRD.md` lines 627-638 for the Phase 3 checklist.
+The PRD defines 5 phases. Current phase: **Phase 4 (Enterprise Features)**. Phases 1-3 are complete — daemon, bridge, proxy, config, CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, and 179 tests across 19 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.

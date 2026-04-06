@@ -3,6 +3,21 @@ import type { ResolvedIdentity } from '../interceptors/types.js';
 import { matchesAny } from '../interceptors/permissions.js';
 
 /**
+ * Filter the initialize response to remove sampling capability if disabled.
+ * Returns a modified capabilities object (new object, not mutated).
+ */
+export function filterCapabilities(
+  capabilities: Record<string, unknown>,
+  serverConfig: ServerConfig,
+): Record<string, unknown> {
+  if (!serverConfig.policy.sampling.enabled && 'sampling' in capabilities) {
+    const { sampling: _, ...rest } = capabilities;
+    return rest;
+  }
+  return capabilities;
+}
+
+/**
  * Filter tools/list response to remove denied tools.
  * Uses the same matching logic as the permission interceptor.
  */
