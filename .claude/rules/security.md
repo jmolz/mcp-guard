@@ -23,6 +23,8 @@ Every decision point defaults to BLOCK:
 - Sampling not explicitly enabled → BLOCK and remove from capabilities
 - Unknown MCP message type → BLOCK
 
+- Malformed MCP requests (e.g., `tools/call` without `name`, `resources/read` without `uri`) → BLOCK
+
 **Never** add a fallback that silently allows a request through.
 
 ## Authentication
@@ -34,6 +36,11 @@ Every decision point defaults to BLOCK:
 - Only `ENOENT` is suppressed during key read — other FS errors (EACCES, EIO) are fatal `AuthError`, never silently regenerating the key
 - Verified on every bridge connection using `crypto.timingSafeEqual` alongside peer UID match
 - If key file permissions are wrong, daemon refuses to start
+
+### API Key Authentication
+- API keys must be compared in constant time — pre-hash all configured keys at startup with SHA-256, then compare the hash of the presented key using `crypto.timingSafeEqual`
+- Never use plain object property lookup (`config.api_keys[key]`) for key validation — this is a timing oracle
+- Strip `_api_key` from params before forwarding to upstream
 
 ### Peer Credentials
 - Linux: `SO_PEERCRED` via socket option

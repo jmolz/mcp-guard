@@ -258,4 +258,4 @@ When working on specific areas, read the corresponding reference:
 
 ### Implementation Phases
 
-The PRD defines 5 phases. Current phase: **Phase 2 (Interceptor Pipeline + Auth)**. Phase 1 (Foundation) is complete — daemon, bridge, proxy, config, CLI, and full E2E test suite are working. See `.claude/PRD.md` lines 614-625 for the Phase 2 checklist.
+The PRD defines 5 phases. Current phase: **Phase 3 (PII Detection + Sampling Guard)**. Phase 1 (Foundation) and Phase 2 (Interceptor Pipeline + Auth) are complete — daemon, bridge, proxy, config, CLI, interceptor pipeline (auth, rate-limit, permissions), capability filtering, audit system, and full E2E test suite are working. See `.claude/PRD.md` lines 627-638 for the Phase 3 checklist.
