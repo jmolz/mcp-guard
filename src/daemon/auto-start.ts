@@ -28,7 +28,7 @@ export async function isDaemonRunning(socketPath?: string): Promise<boolean> {
   });
 }
 
-export async function autoStartDaemon(configPath?: string): Promise<void> {
+export async function autoStartDaemon(configPath?: string, socketPath?: string): Promise<void> {
   // Fork the CLI process with 'start' command in background mode
   const thisFile = fileURLToPath(import.meta.url);
   const cliPath = join(dirname(thisFile), '..', 'cli.js');
@@ -53,7 +53,7 @@ export async function autoStartDaemon(configPath?: string): Promise<void> {
     await new Promise((r) => setTimeout(r, interval));
     waited += interval;
 
-    if (await isDaemonRunning()) {
+    if (await isDaemonRunning(socketPath)) {
       return;
     }
   }

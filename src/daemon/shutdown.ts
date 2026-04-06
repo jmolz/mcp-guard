@@ -14,20 +14,17 @@ export interface ShutdownContext {
   logger: Logger;
 }
 
-export function registerShutdownHandlers(context: ShutdownContext): void {
-  let shuttingDown = false;
+export interface ShutdownHandle {
+  /** Trigger graceful shutdown. Idempotent — safe to call multiple times. */
+  shutdown(signal?: string): Promise<void>;
+}
+
+export function registerShutdownHandlers(context: ShutdownContext): ShutdownHandle {
+  let shutdownPromise: Promise<void> | undefined;
 
   async function shutdown(signal: string) {
-    if (shuttingDown) return;
-    shuttingDown = true;
-
-    const { socketServer, serverManager, db, pidFile, timeout, logger } = context;
+    const { socketServer, serverManager, db, pidFile, logger } = context;
     logger.info('Shutdown initiated', { signal });
-
-    const timer = setTimeout(() => {
-      logger.warn('Shutdown timeout — forcing exit');
-      process.exit(1);
-    }, timeout);
 
     try {
       // 1. Stop accepting new connections + notify bridges
@@ -39,9 +36,13 @@ export function registerShutdownHandlers(context: ShutdownContext): void {
       logger.info('Upstream servers disconnected');
 
       // 3. Checkpoint and close database
-      checkpointWal(db);
-      db.close();
-      logger.info('Database closed');
+      try {
+        checkpointWal(db);
+        db.close();
+        logger.info('Database closed');
+      } catch {
+        // DB may already be closed — not an error
+      }
 
       // 4. Remove PID file
       try {
@@ -51,15 +52,43 @@ export function registerShutdownHandlers(context: ShutdownContext): void {
       }
 
       logger.info('Shutdown complete');
-      clearTimeout(timer);
-      process.exit(0);
     } catch (err) {
       logger.error('Shutdown error', { error: String(err) });
-      clearTimeout(timer);
-      process.exit(1);
+      throw err;
     }
   }
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  function triggerShutdown(signal: string): Promise<void> {
+    if (!shutdownPromise) {
+      shutdownPromise = shutdown(signal);
+    }
+    return shutdownPromise;
+  }
+
+  // Signal handlers add process.exit after shutdown completes
+  function signalHandler(signal: string) {
+    const timer = setTimeout(() => {
+      context.logger.warn('Shutdown timeout exceeded — forcing exit', { signal });
+      process.exit(1);
+    }, context.timeout);
+
+    triggerShutdown(signal)
+      .then(() => {
+        clearTimeout(timer);
+        process.exit(0);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        process.exit(1);
+      });
+  }
+
+  process.once('SIGTERM', () => signalHandler('SIGTERM'));
+  process.once('SIGINT', () => signalHandler('SIGINT'));
+
+  return {
+    shutdown(signal?: string) {
+      return triggerShutdown(signal ?? 'programmatic');
+    },
+  };
 }

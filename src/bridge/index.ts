@@ -1,18 +1,29 @@
 import { connect } from 'node:net';
 import { authenticateToDaemon } from './auth.js';
 import { isDaemonRunning, autoStartDaemon } from '../daemon/auto-start.js';
-import { DEFAULT_SOCKET_PATH } from '../constants.js';
+import { DEFAULT_SOCKET_PATH, DEFAULT_DAEMON_KEY_PATH, MAX_MESSAGE_SIZE } from '../constants.js';
 import { BridgeError } from '../errors.js';
-import { MAX_MESSAGE_SIZE } from '../constants.js';
 
-export async function startBridge(serverName: string, configPath?: string): Promise<void> {
+export interface BridgeOptions {
+  socketPath?: string;
+  keyPath?: string;
+}
+
+export async function startBridge(
+  serverName: string,
+  configPath?: string,
+  options?: BridgeOptions,
+): Promise<void> {
+  const socketPath = options?.socketPath ?? DEFAULT_SOCKET_PATH;
+  const keyPath = options?.keyPath ?? DEFAULT_DAEMON_KEY_PATH;
+
   // 1. Ensure daemon is running
-  if (!(await isDaemonRunning())) {
-    await autoStartDaemon(configPath);
+  if (!(await isDaemonRunning(socketPath))) {
+    await autoStartDaemon(configPath, socketPath);
   }
 
   // 2. Connect to daemon
-  const socket = connect(DEFAULT_SOCKET_PATH);
+  const socket = connect(socketPath);
 
   await new Promise<void>((resolve, reject) => {
     socket.on('connect', resolve);
@@ -20,7 +31,7 @@ export async function startBridge(serverName: string, configPath?: string): Prom
   });
 
   // 3. Authenticate
-  await authenticateToDaemon(socket);
+  await authenticateToDaemon(socket, keyPath);
 
   // 4. Pipe stdin → daemon
   let stdinBuffer = Buffer.alloc(0);

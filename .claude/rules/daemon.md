@@ -14,13 +14,13 @@ paths:
 ### Daemon (`mcp-guard start`)
 - Long-running process, single instance per machine
 - Owns: Unix socket server, all upstream MCP connections, SQLite database, interceptor pipeline, dashboard HTTP server
-- PID file at `~/.config/mcp-guard/daemon.pid`
+- All state paths (key, PID, DB) derive from `config.daemon.home` — never use hardcoded `DEFAULT_*` constants in daemon code
 - Auto-starts when a bridge connects and no daemon is running
 
 ### Bridge (`mcp-guard connect --server <name>`)
-- **Must stay ~50 lines of code**. This is a structural security guarantee.
 - Contains: stdin/stdout relay to Unix socket, daemon.key authentication. Nothing else.
 - **Zero policy logic. Zero upstream connection code.** If you're adding logic to the bridge, you're doing it wrong — put it in the daemon.
+- Accepts `BridgeOptions` (socketPath, keyPath) from CLI — these are connection parameters, not policy logic
 - If the daemon is unreachable, the bridge exits with a non-zero code (MCP client sees "server unavailable")
 
 ### CLI (`mcp-guard logs`, `status`, etc.)
@@ -29,28 +29,32 @@ paths:
 
 ## Unix Socket Protocol
 
-- Socket path: `~/.config/mcp-guard/daemon.sock`
+- Socket path: from `config.daemon.socket_path` (default: `~/.config/mcp-guard/daemon.sock`)
 - Permissions: 0600 (owner-only)
-- Protocol: length-prefixed JSON messages over the socket
-- Authentication: Bridge sends daemon.key on connect; daemon verifies key + peer UID match
+- Protocol: length-prefixed JSON messages over the socket (4-byte big-endian uint32 length prefix)
+- Authentication: Bridge sends daemon.key on connect; daemon verifies key (constant-time) + peer UID match
 
 ## Auto-Start Flow
 
-1. Bridge checks if daemon is running (try connecting to socket)
-2. If not running: fork and detach a daemon process
-3. Wait for socket to become available (poll, max ~2s)
+1. Bridge checks if daemon is running (try connecting to socket at configured path)
+2. If not running: `autoStartDaemon(configPath, socketPath)` forks and detaches a daemon process
+3. Wait for socket to become available (poll configured socketPath, max ~3s)
 4. Proceed with authentication
 5. If auto-start fails: bridge exits non-zero (fail-closed)
 
 ## Graceful Shutdown
 
-1. SIGTERM received → stop accepting new bridge connections
-2. In-flight requests complete (configurable timeout, default 30s)
-3. Bridges notified of shutdown via socket message
-4. Audit log flushed and synced
-5. SQLite WAL checkpointed
-6. PID file removed
-7. Daemon exits 0
+Shutdown uses a **single unified path** via `ShutdownHandle` returned by `registerShutdownHandlers()`. The `DaemonHandle.shutdown()` delegates to the same handle. Idempotency is guaranteed by promise caching — calling `shutdown()` multiple times returns the same promise.
+
+Signal handlers use `process.once` (not `process.on`) to prevent listener accumulation in tests.
+
+**Shutdown sequence:**
+1. SIGTERM/SIGINT received (or programmatic `shutdown()` called)
+2. Socket server closed — sends `{ type: 'shutdown' }` to connected bridges
+3. Upstream servers disconnected
+4. SQLite WAL checkpointed and DB closed (try/catch — safe if already closed)
+5. PID file removed
+6. Signal handlers call `process.exit(0)` after completion (programmatic callers do not)
 
 ## MCP Proxy Pattern
 

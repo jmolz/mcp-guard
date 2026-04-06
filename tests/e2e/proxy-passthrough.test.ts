@@ -3,74 +3,16 @@ import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
-import { connect, type Socket } from 'node:net';
+import { spawn } from 'node:child_process';
 import { ensureDaemonKey, readDaemonKey } from '../../src/identity/daemon-key.js';
 import { loadConfig } from '../../src/config/loader.js';
 import { startDaemon, type DaemonHandle } from '../../src/daemon/index.js';
+import { writeFramed, readFramed, connectSocket } from '../fixtures/framing.js';
 
 let tempDir: string;
 let socketPath: string;
 let keyPath: string;
 let daemonHandle: DaemonHandle;
-
-function writeFramed(socket: Socket, data: unknown): void {
-  const json = JSON.stringify(data);
-  const payload = Buffer.from(json, 'utf-8');
-  const header = Buffer.alloc(4);
-  header.writeUInt32BE(payload.length, 0);
-  socket.write(Buffer.concat([header, payload]));
-}
-
-function readFramed(socket: Socket, timeout = 5000): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    let buffer = Buffer.alloc(0);
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('Read timeout'));
-    }, timeout);
-
-    function onData(chunk: Buffer) {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (buffer.length >= 4) {
-        const length = buffer.readUInt32BE(0);
-        if (buffer.length >= 4 + length) {
-          cleanup();
-          const json = buffer.subarray(4, 4 + length).toString('utf-8');
-          resolve(JSON.parse(json));
-        }
-      }
-    }
-
-    function onError(err: Error) {
-      cleanup();
-      reject(err);
-    }
-
-    function onClose() {
-      cleanup();
-      reject(new Error('Socket closed'));
-    }
-
-    function cleanup() {
-      clearTimeout(timer);
-      socket.removeListener('data', onData);
-      socket.removeListener('error', onError);
-      socket.removeListener('close', onClose);
-    }
-
-    socket.on('data', onData);
-    socket.on('error', onError);
-    socket.on('close', onClose);
-  });
-}
-
-function connectSocket(path: string): Promise<Socket> {
-  return new Promise((resolve, reject) => {
-    const socket = connect(path);
-    socket.on('connect', () => resolve(socket));
-    socket.on('error', reject);
-  });
-}
 
 describe('E2E: Proxy passthrough', () => {
   const mockServerPath = join(import.meta.dirname, '..', 'fixtures', 'mock-mcp-server.ts');
@@ -149,6 +91,19 @@ daemon:
     const response = (await readFramed(socket)) as { type: string; reason?: string };
     expect(response.type).toBe('auth_fail');
     socket.destroy();
+  });
+
+  it('closes socket when non-auth message sent first', async () => {
+    const socket = await connectSocket(socketPath);
+    writeFramed(socket, { type: 'mcp', server: 'mock', data: {} });
+    // Socket should be destroyed by daemon
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Socket not closed')), 3000);
+      socket.on('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
   });
 
   it('proxies tools/list through daemon', async () => {
@@ -283,4 +238,46 @@ daemon:
     expect(response.data.error.message).toContain('Unknown server');
     socket.destroy();
   });
+
+  it('bridge process exits non-zero when daemon key is wrong (fail-closed)', async () => {
+    // Write a WRONG daemon key to a separate file
+    const badKeyPath = join(tempDir, 'bad-daemon.key');
+    await writeFile(badKeyPath, randomBytes(32), { mode: 0o600 });
+
+    const helperPath = join(import.meta.dirname, '..', 'fixtures', 'bridge-connect-helper.ts');
+
+    // Spawn the bridge helper process with the wrong key
+    const bridgeProc = spawn('npx', ['tsx', helperPath, 'mock'], {
+      env: {
+        ...process.env,
+        MCP_GUARD_TEST_SOCKET: socketPath,
+        MCP_GUARD_TEST_KEY: badKeyPath,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    // Close stdin immediately — we're testing auth failure, not MCP relay
+    bridgeProc.stdin.end();
+
+    // Capture stderr to verify auth rejection reason
+    let stderr = '';
+    bridgeProc.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    const exitCode = await new Promise<number | null>((resolve) => {
+      const timer = setTimeout(() => {
+        bridgeProc.kill('SIGKILL');
+        resolve(null);
+      }, 10000);
+      bridgeProc.on('exit', (code) => {
+        clearTimeout(timer);
+        resolve(code);
+      });
+    });
+
+    // Bridge MUST exit 1 when auth fails and stderr must indicate auth failure
+    expect(exitCode).toBe(1);
+    expect(stderr).toMatch(/auth/i);
+  }, 15000);
 });

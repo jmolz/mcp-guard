@@ -235,7 +235,7 @@ When working on specific areas, read the corresponding reference:
 - **Fail-closed everywhere**: If in doubt, block. Interceptor throws? Block. Timeout? Block. Auth fails? Block.
 - **Never store raw PII in audit logs**: Log that redaction occurred and the PII type, never the original value.
 - **Bridge must stay thin**: The bridge process must contain zero policy logic and zero upstream connection code. This is a structural guarantee.
-- **Daemon key is 0600**: `~/.config/mcp-guard/daemon.key` and Unix socket must have 0600 permissions. Verify on startup.
+- **Daemon key is 0600**: Daemon key (at `{daemon.home}/daemon.key`) and Unix socket must have 0600 permissions. Verify on startup. Both `ensureDaemonKey` and `readDaemonKey` enforce this — only `ENOENT` is suppressed during key check, all other FS errors are fatal.
 - **Sampling disabled by default**: `sampling/createMessage` must be explicitly enabled per server. Capability removed from advertisement if disabled.
 - **Parameterized SQL only**: All SQLite queries use parameterized statements. No string interpolation in SQL, ever.
 - **No `any` types in security paths**: Interceptors, auth, PII detection, and audit code must be fully typed.
@@ -258,4 +258,4 @@ When working on specific areas, read the corresponding reference:
 
 ### Implementation Phases
 
-The PRD defines 5 phases. Current phase: **Phase 1 (Foundation)**. See `.claude/PRD.md` lines 600-612 for the full Phase 1 checklist.
+The PRD defines 5 phases. Current phase: **Phase 2 (Interceptor Pipeline + Auth)**. Phase 1 (Foundation) is complete — daemon, bridge, proxy, config, CLI, and full E2E test suite are working. See `.claude/PRD.md` lines 614-625 for the Phase 2 checklist.

@@ -8,9 +8,20 @@ export async function ensureDaemonKey(keyPath?: string): Promise<Buffer> {
   const path = keyPath ?? DEFAULT_DAEMON_KEY_PATH;
 
   try {
-    const existing = await readFile(path);
-    return existing;
-  } catch {
+    const stats = await stat(path);
+    const mode = stats.mode & 0o777;
+    if (mode !== 0o600) {
+      throw new AuthError(
+        `Daemon key has insecure permissions: ${mode.toString(8)} (expected 600): ${path}`,
+      );
+    }
+    return await readFile(path);
+  } catch (err) {
+    if (err instanceof AuthError) throw err;
+    const errCode = (err as NodeJS.ErrnoException).code;
+    if (errCode !== 'ENOENT') {
+      throw new AuthError(`Failed to read daemon key: ${err}`);
+    }
     // Key doesn't exist — generate it
   }
 

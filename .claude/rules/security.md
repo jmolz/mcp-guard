@@ -29,8 +29,10 @@ Every decision point defaults to BLOCK:
 
 ### Daemon Key
 - Generated on first run: 256-bit random via `crypto.randomBytes(32)`
-- Stored at `~/.config/mcp-guard/daemon.key` with 0600 permissions
-- Verified on every bridge connection alongside peer UID match
+- Stored at `{daemon.home}/daemon.key` with 0600 permissions (path derived from config, not hardcoded)
+- Both `ensureDaemonKey` and `readDaemonKey` check permissions — wrong permissions throw `AuthError`
+- Only `ENOENT` is suppressed during key read — other FS errors (EACCES, EIO) are fatal `AuthError`, never silently regenerating the key
+- Verified on every bridge connection using `crypto.timingSafeEqual` alongside peer UID match
 - If key file permissions are wrong, daemon refuses to start
 
 ### Peer Credentials

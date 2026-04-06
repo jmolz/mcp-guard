@@ -43,6 +43,16 @@ describe('RegexDetector', () => {
 - Use temp directories for Unix sockets, SQLite databases, and config files
 - Clean up after each test (afterEach/afterAll hooks)
 - Set short timeouts for daemon auto-start tests
+- Two E2E patterns:
+  - **In-process daemon**: Call `startDaemon(config)` directly in test (faster, easier to debug)
+  - **Process-spawned daemon**: Spawn `npx tsx src/cli.ts start --config <path>` as a detached child (tests real CLI flow)
+- Use `tests/fixtures/bridge-connect-helper.ts` for process-level bridge tests (wrong key → exit 1)
+
+### Shared Test Helpers
+- `tests/fixtures/framing.ts` — `writeFramed()`, `readFramed()`, `connectSocket()` for socket protocol
+- `tests/fixtures/mock-mcp-server.ts` — Standalone MCP server for upstream testing
+- `tests/fixtures/bridge-connect-helper.ts` — Spawnable bridge script with env-var path overrides
+- **Never duplicate** test helpers across files — import from `tests/fixtures/`
 
 ### Mocking
 - Use `vi.mock()` for module-level mocks (e.g., mocking koffi for peer creds on non-Unix)

@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { McpGuardConfig } from '../config/schema.js';
 import { ensureDaemonKey } from '../identity/daemon-key.js';
 import { openDatabase } from '../storage/sqlite.js';
@@ -8,7 +9,6 @@ import { createServerManager } from './server-manager.js';
 import { createProxyServer } from '../proxy/mcp-server.js';
 import { registerShutdownHandlers } from './shutdown.js';
 import { createLogger } from '../logger.js';
-import { DEFAULT_PID_FILE, DEFAULT_DB_PATH } from '../constants.js';
 
 export interface DaemonHandle {
   shutdown(): Promise<void>;
@@ -21,23 +21,27 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
 
   const home = config.daemon.home;
 
+  // Derive all state paths from config.daemon.home
+  const keyPath = join(home, 'daemon.key');
+  const pidFile = join(home, 'daemon.pid');
+  const dbPath = join(home, 'mcp-guard.db');
+
   // 1. Ensure home directory
   await mkdir(home, { recursive: true, mode: 0o700 });
   logger.info('Home directory ready', { path: home });
 
   // 2. Ensure daemon key
-  const daemonKey = await ensureDaemonKey();
+  const daemonKey = await ensureDaemonKey(keyPath);
   logger.info('Daemon key ready');
 
   // 3. Write PID file
-  const pidFile = DEFAULT_PID_FILE;
   await writeFile(pidFile, String(process.pid), { mode: 0o600 });
   logger.info('PID file written', { pid: process.pid, path: pidFile });
 
   // 4. Open database and run migrations
-  const db = openDatabase({ path: DEFAULT_DB_PATH });
+  const db = openDatabase({ path: dbPath });
   runMigrations(db);
-  logger.info('Database ready', { path: DEFAULT_DB_PATH });
+  logger.info('Database ready', { path: dbPath });
 
   // 5. Create server manager and connect to upstream servers
   const serverManager = createServerManager(config, logger);
@@ -70,8 +74,8 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
 
   await socketServer.listen();
 
-  // 8. Register shutdown handlers
-  registerShutdownHandlers({
+  // 8. Register shutdown handlers (single unified shutdown path)
+  const shutdownHandle = registerShutdownHandlers({
     socketServer,
     serverManager,
     db,
@@ -87,15 +91,8 @@ export async function startDaemon(config: McpGuardConfig): Promise<DaemonHandle>
   });
 
   return {
-    async shutdown() {
-      await socketServer.close();
-      await serverManager.stopAll();
-      try {
-        db.pragma('wal_checkpoint(TRUNCATE)');
-        db.close();
-      } catch {
-        // Best effort
-      }
+    shutdown() {
+      return shutdownHandle.shutdown();
     },
   };
 }

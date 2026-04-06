@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, rm, stat, chmod, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ensureDaemonKey, readDaemonKey, verifyDaemonKey } from '../../src/identity/daemon-key.js';
@@ -57,6 +58,24 @@ describe('daemon-key', () => {
     it('throws AuthError when key file does not exist', async () => {
       const keyPath = join(tempDir, 'nonexistent.key');
       await expect(readDaemonKey(keyPath)).rejects.toThrow(AuthError);
+    });
+
+    it('throws AuthError when key file has wrong permissions', async () => {
+      const keyPath = join(tempDir, 'insecure.key');
+      await writeFile(keyPath, randomBytes(DAEMON_KEY_BYTES), { mode: 0o644 });
+      await expect(readDaemonKey(keyPath)).rejects.toThrow(AuthError);
+      await expect(readDaemonKey(keyPath)).rejects.toThrow('insecure permissions');
+    });
+  });
+
+  describe('ensureDaemonKey permission enforcement', () => {
+    it('throws AuthError when existing key has wrong permissions', async () => {
+      const keyPath = join(tempDir, 'daemon.key');
+      // Create key with correct permissions first, then weaken
+      await writeFile(keyPath, randomBytes(DAEMON_KEY_BYTES), { mode: 0o600 });
+      await chmod(keyPath, 0o644);
+      await expect(ensureDaemonKey(keyPath)).rejects.toThrow(AuthError);
+      await expect(ensureDaemonKey(keyPath)).rejects.toThrow('insecure permissions');
     });
   });
 

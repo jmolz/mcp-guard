@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import { readFile, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { loadConfig } from './config/loader.js';
 import { startDaemon } from './daemon/index.js';
 import { startBridge } from './bridge/index.js';
 import { isDaemonRunning } from './daemon/auto-start.js';
-import { DEFAULT_PID_FILE } from './constants.js';
 
 const program = new Command()
   .name('mcp-guard')
@@ -41,9 +41,12 @@ program
 program
   .command('stop')
   .description('Stop the running daemon')
-  .action(async () => {
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (opts: { config?: string }) => {
     try {
-      const pidStr = await readFile(DEFAULT_PID_FILE, 'utf-8');
+      const config = await loadConfig(opts.config);
+      const pidFile = join(config.daemon.home, 'daemon.pid');
+      const pidStr = await readFile(pidFile, 'utf-8');
       const pid = parseInt(pidStr.trim(), 10);
 
       process.kill(pid, 'SIGTERM');
@@ -70,7 +73,7 @@ program
       process.kill(pid, 'SIGKILL');
 
       try {
-        await unlink(DEFAULT_PID_FILE);
+        await unlink(pidFile);
       } catch {
         // Already cleaned up
       }
@@ -79,12 +82,7 @@ program
       if (code === 'ENOENT') {
         console.log('Daemon is not running (no PID file)');
       } else if (code === 'ESRCH') {
-        console.log('Daemon process not found — cleaning up PID file');
-        try {
-          await unlink(DEFAULT_PID_FILE);
-        } catch {
-          // Already cleaned up
-        }
+        console.log('Daemon process not found — cleaning up stale PID file');
       } else {
         console.error(`Failed to stop daemon: ${err}`);
         process.exit(1);
@@ -99,7 +97,11 @@ program
   .option('-c, --config <path>', 'Path to config file')
   .action(async (opts: { server: string; config?: string }) => {
     try {
-      await startBridge(opts.server, opts.config);
+      const config = await loadConfig(opts.config);
+      await startBridge(opts.server, opts.config, {
+        socketPath: config.daemon.socket_path,
+        keyPath: join(config.daemon.home, 'daemon.key'),
+      });
     } catch (err) {
       console.error(`Bridge failed: ${err}`);
       process.exit(1);
@@ -109,11 +111,14 @@ program
 program
   .command('status')
   .description('Show daemon status')
-  .action(async () => {
-    const running = await isDaemonRunning();
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (opts: { config?: string }) => {
+    const config = await loadConfig(opts.config);
+    const running = await isDaemonRunning(config.daemon.socket_path);
     if (running) {
       try {
-        const pidStr = await readFile(DEFAULT_PID_FILE, 'utf-8');
+        const pidFile = join(config.daemon.home, 'daemon.pid');
+        const pidStr = await readFile(pidFile, 'utf-8');
         console.log(`Daemon is running (PID: ${pidStr.trim()})`);
       } catch {
         console.log('Daemon is running');
@@ -126,8 +131,10 @@ program
 program
   .command('health')
   .description('Check daemon health (exit 0 if healthy, 1 if not)')
-  .action(async () => {
-    const running = await isDaemonRunning();
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (opts: { config?: string }) => {
+    const config = await loadConfig(opts.config);
+    const running = await isDaemonRunning(config.daemon.socket_path);
     process.exit(running ? 0 : 1);
   });
 
