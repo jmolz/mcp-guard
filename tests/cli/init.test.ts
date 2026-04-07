@@ -9,6 +9,16 @@ vi.mock('node:fs/promises', () => ({
   access: vi.fn(),
 }));
 
+// Mock os so init always sees darwin paths — tests use macOS fixture paths
+vi.mock('node:os', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('node:os')>();
+  return {
+    ...orig,
+    platform: () => 'darwin',
+    homedir: () => process.env.HOME ?? '/tmp',
+  };
+});
+
 // Import after mocks are set up
 import { readFile, writeFile, access } from 'node:fs/promises';
 import { runInit } from '../../src/cli/init.js';
