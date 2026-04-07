@@ -91,15 +91,32 @@ Config merge uses **floor-based semantics**: personal configs can restrict but n
 
 ## Benchmark Results
 
-The full benchmark suite tests against 4,500+ attack scenarios across 10 categories and 10,000+ legitimate requests. Targets:
+The benchmark suite tests against 4,500+ attack scenarios across 10 categories and 10,000+ legitimate requests.
 
-| Metric | Target |
-|--------|--------|
-| Detection rate | >95% |
-| False positive rate | <0.1% |
-| p50 latency overhead | <5ms |
+| Metric | Result | Target | Status |
+|--------|--------|--------|--------|
+| Detection rate | 92.5% | >95% | In progress |
+| False positive rate | 0.000% | <0.1% | Pass |
+| p50 latency overhead | 0.19ms | <5ms | Pass |
+| p99 latency overhead | 1.22ms | — | — |
+| Throughput | 7,042 req/s | — | — |
 
-Run `pnpm benchmark` for full results or `pnpm benchmark:quick` for a stratified sample. See [latest report](benchmarks/results/REPORT.md) for per-category breakdowns and charts.
+### Per-Category Detection
+
+| Category | Rate | Status |
+|----------|------|--------|
+| Permission bypass | 100% | Pass |
+| PII response leak | 100% | Pass |
+| Sampling injection | 100% | Pass |
+| Config override | 100% | Pass |
+| Capability probe | 96% | Pass |
+| Resource traversal | 94% | In progress |
+| Rate limit evasion | 92% | In progress |
+| PII request leak | 84% | In progress |
+| PII evasion | 82% | In progress |
+| Auth bypass | 80% | In progress |
+
+> Results from quick-mode stratified sample (1,004 scenarios). Full suite numbers may differ. Run `pnpm benchmark` for full results or see [latest report](benchmarks/results/REPORT.md) for charts.
 
 ## CLI Reference
 
