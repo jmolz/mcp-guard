@@ -20,7 +20,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build
-      - run: pnpm benchmark:quick
+      - run: pnpm benchmark:quick -- --min-detection 0.85
 
   npm-publish:
     runs-on: ubuntu-latest

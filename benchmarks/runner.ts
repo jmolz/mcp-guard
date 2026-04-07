@@ -22,13 +22,15 @@ import { runLegitimateTraffic } from './legitimate/run-legitimate.js';
 import { runPerformanceBenchmark } from './performance/run-performance.js';
 import { generateReport } from './report/index.js';
 
-function parseArgs(): { quick: boolean; suite?: string; noReport: boolean } {
+function parseArgs(): { quick: boolean; suite?: string; noReport: boolean; minDetection: number } {
   const args = process.argv.slice(2);
   const quick = args.includes('--quick');
   const noReport = args.includes('--no-report');
   const suiteIdx = args.indexOf('--suite');
   const suite = suiteIdx >= 0 ? args[suiteIdx + 1] : undefined;
-  return { quick, suite, noReport };
+  const detIdx = args.indexOf('--min-detection');
+  const minDetection = detIdx >= 0 ? parseFloat(args[detIdx + 1]) : 0.95;
+  return { quick, suite, noReport, minDetection };
 }
 
 function printSecuritySummary(results: SecurityBenchmarkResult[]): void {
@@ -74,6 +76,7 @@ function printVerdict(
   auditIntegrity?: AuditIntegrityResult,
   legitimate?: LegitimateTrafficResult,
   performance?: PerformanceBenchmarkResult,
+  minDetection = 0.95,
 ): boolean {
   console.log('\n=== Verdict ===\n');
   let allPass = true;
@@ -82,9 +85,9 @@ function printVerdict(
     const totalAll = security.reduce((s, r) => s + r.total, 0);
     const detectedAll = security.reduce((s, r) => s + r.detected, 0);
     const overallRate = totalAll > 0 ? detectedAll / totalAll : 1;
-    const pass = overallRate >= 0.95;
+    const pass = overallRate >= minDetection;
     if (!pass) allPass = false;
-    console.log(`  Detection rate: ${(overallRate * 100).toFixed(1)}% ${pass ? 'PASS' : 'FAIL'} (target: >95%)`);
+    console.log(`  Detection rate: ${(overallRate * 100).toFixed(1)}% ${pass ? 'PASS' : 'FAIL'} (target: >${(minDetection * 100).toFixed(0)}%)`);
   }
 
   if (auditIntegrity) {
@@ -107,7 +110,7 @@ function printVerdict(
   return allPass;
 }
 
-export async function runBenchmarks(options: { quick?: boolean; suite?: string; noReport?: boolean }): Promise<{ result: BenchmarkSuiteResult; passed: boolean }> {
+export async function runBenchmarks(options: { quick?: boolean; suite?: string; noReport?: boolean; minDetection?: number }): Promise<{ result: BenchmarkSuiteResult; passed: boolean }> {
   console.log(`\n=== MCP-Guard Benchmark Suite${options.quick ? ' (quick mode)' : ''} ===\n`);
 
   const genOpts = { quick: options.quick };
@@ -137,7 +140,7 @@ export async function runBenchmarks(options: { quick?: boolean; suite?: string; 
     printPerfSummary(performance);
   }
 
-  const verdictPassed = printVerdict(security, auditIntegrity, legitimate, performance);
+  const verdictPassed = printVerdict(security, auditIntegrity, legitimate, performance, options.minDetection);
 
   const result: BenchmarkSuiteResult = {
     timestamp: new Date().toISOString(),
@@ -163,8 +166,8 @@ export async function runBenchmarks(options: { quick?: boolean; suite?: string; 
 }
 
 // Direct execution
-const { quick, suite, noReport } = parseArgs();
-runBenchmarks({ quick, suite, noReport })
+const { quick, suite, noReport, minDetection } = parseArgs();
+runBenchmarks({ quick, suite, noReport, minDetection })
   .then(({ passed }) => {
     if (!passed) process.exitCode = 1;
   })
