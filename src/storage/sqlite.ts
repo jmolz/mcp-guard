@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers';
 import { chmodSync } from 'node:fs';
+import { hkdfSync } from 'node:crypto';
 import { StorageError } from '../errors.js';
 
 export interface DatabaseOptions {
@@ -7,12 +8,20 @@ export interface DatabaseOptions {
   encryptionKey?: string;
 }
 
+export function deriveDbEncryptionKey(daemonKey: Buffer): string {
+  const derived = hkdfSync('sha256', daemonKey, 'mcp-guard', 'mcp-guard-db-encryption', 32);
+  return Buffer.from(derived).toString('hex');
+}
+
 export function openDatabase(options: DatabaseOptions): Database.Database {
   try {
     const db = new Database(options.path);
 
     if (options.encryptionKey) {
-      db.pragma(`key='${options.encryptionKey}'`);
+      if (!/^[a-f0-9]+$/i.test(options.encryptionKey)) {
+        throw new StorageError('Encryption key must be hex-encoded');
+      }
+      db.pragma(`key="x'${options.encryptionKey}'"`);
     }
 
     db.pragma('journal_mode = WAL');

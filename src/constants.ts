@@ -12,3 +12,6 @@ export const DEFAULT_SHUTDOWN_TIMEOUT = 30_000;
 export const DAEMON_KEY_BYTES = 32;
 export const AUTH_TIMEOUT = 5_000;
 export const MAX_MESSAGE_SIZE = 4 * 1024 * 1024; // 4MB
+export const DEFAULT_EXTENDS_CACHE_DIR = 'extends-cache';
+export const EXTENDS_FETCH_TIMEOUT = 10_000; // 10s
+export const CONFIG_RELOAD_DEBOUNCE = 250; // 250ms

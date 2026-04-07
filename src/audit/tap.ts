@@ -5,6 +5,7 @@ import { formatAuditEntry } from './stdout-logger.js';
 
 export interface AuditTap {
   record(entry: AuditEntry): void;
+  getLastWriteTime(): string | null;
 }
 
 /**
@@ -18,6 +19,8 @@ export function createAuditTap(
   logger: Logger,
   config: McpGuardConfig,
 ): AuditTap {
+  let lastWriteTime: string | null = null;
+
   return {
     record(entry: AuditEntry): void {
       if (!config.audit.enabled) {
@@ -27,6 +30,7 @@ export function createAuditTap(
       // Write to SQLite
       try {
         store.write(entry);
+        lastWriteTime = new Date().toISOString();
       } catch (err) {
         logger.error('Audit store write failed', { error: String(err) });
       }
@@ -39,6 +43,10 @@ export function createAuditTap(
           logger.error('Audit stdout write failed', { error: String(err) });
         }
       }
+    },
+
+    getLastWriteTime() {
+      return lastWriteTime;
     },
   };
 }

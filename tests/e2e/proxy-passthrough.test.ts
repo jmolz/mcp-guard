@@ -50,6 +50,7 @@ daemon:
   socket_path: "${socketPath}"
   home: "${tempDir}"
   shutdown_timeout: 5
+  dashboard_port: 0
 `,
     );
 

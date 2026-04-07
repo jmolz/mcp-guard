@@ -37,3 +37,9 @@ export class BridgeError extends McpGuardError {
     super(message, 'BRIDGE_ERROR');
   }
 }
+
+export class DashboardError extends McpGuardError {
+  constructor(message: string) {
+    super(message, 'DASHBOARD_ERROR');
+  }
+}

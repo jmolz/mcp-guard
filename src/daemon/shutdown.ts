@@ -12,6 +12,7 @@ export interface ShutdownContext {
   pidFile: string;
   timeout: number;
   logger: Logger;
+  onBeforeShutdown?: () => Promise<void>;
 }
 
 export interface ShutdownHandle {
@@ -23,10 +24,20 @@ export function registerShutdownHandlers(context: ShutdownContext): ShutdownHand
   let shutdownPromise: Promise<void> | undefined;
 
   async function shutdown(signal: string) {
-    const { socketServer, serverManager, db, pidFile, logger } = context;
+    const { socketServer, serverManager, db, pidFile, logger, onBeforeShutdown } = context;
     logger.info('Shutdown initiated', { signal });
 
     try {
+      // 0. Run pre-shutdown hooks (config watcher, dashboard server)
+      // Failures must not abort the rest of shutdown (DB checkpoint, PID cleanup)
+      if (onBeforeShutdown) {
+        try {
+          await onBeforeShutdown();
+        } catch (err) {
+          logger.warn('Pre-shutdown hook failed', { error: String(err) });
+        }
+      }
+
       // 1. Stop accepting new connections + notify bridges
       await socketServer.close();
       logger.info('Socket server closed');

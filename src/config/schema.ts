@@ -29,6 +29,7 @@ export const policySchema = z.object({
     rate_limit: z.number().min(1).optional(),
     audit: z.enum(['basic', 'verbose']).default('basic'),
   }).default({}),
+  locked: z.boolean().default(false),
 }).default({});
 
 export const serverSchema = z.object({
@@ -45,7 +46,10 @@ export const daemonSchema = z.object({
   home: z.string().default(DEFAULT_HOME),
   shutdown_timeout: z.number().min(1).default(30),
   log_level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  dashboard_port: z.number().min(1).max(65535).default(DEFAULT_DASHBOARD_PORT),
+  dashboard_port: z.number().min(0).max(65535).default(DEFAULT_DASHBOARD_PORT),
+  encryption: z.object({
+    enabled: z.boolean().default(false),
+  }).default({}),
 });
 
 export const authSchema = z.object({
@@ -97,7 +101,22 @@ export const auditSchema = z.object({
   retention_days: z.number().min(1).default(90),
 }).default({});
 
+export const extendsSchema = z.object({
+  url: z.string().url().refine((url) => {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:') return true;
+    // Allow HTTP only for loopback addresses (development/testing)
+    if (parsed.protocol === 'http:') {
+      const host = parsed.hostname;
+      return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+    }
+    return false;
+  }, 'extends URL must use HTTPS (HTTP allowed only for loopback addresses)'),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/i, 'SHA-256 hash must be 64 hex characters'),
+});
+
 export const configSchema = z.object({
+  extends: extendsSchema.optional(),
   servers: z.record(z.string(), serverSchema),
   daemon: daemonSchema.default({}),
   auth: authSchema,
@@ -116,3 +135,4 @@ export type AuthConfig = z.infer<typeof authSchema>;
 export type PIIConfig = z.infer<typeof piiSchema>;
 export type SamplingConfig = z.infer<typeof policySchema>['sampling'];
 export type AuditConfig = z.infer<typeof auditSchema>;
+export type ExtendsConfig = z.infer<typeof extendsSchema>;

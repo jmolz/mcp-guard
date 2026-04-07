@@ -5,8 +5,10 @@ import { loadConfig } from './config/loader.js';
 import { startDaemon } from './daemon/index.js';
 import { startBridge } from './bridge/index.js';
 import { isDaemonRunning } from './daemon/auto-start.js';
-import { openDatabase } from './storage/sqlite.js';
+import { openDatabase, deriveDbEncryptionKey } from './storage/sqlite.js';
 import { queryAuditLogs, formatAuditRow } from './audit/query.js';
+import { readDaemonKey } from './identity/daemon-key.js';
+import type { HealthResponse } from './dashboard/health.js';
 
 const program = new Command()
   .name('mcp-guard')
@@ -33,7 +35,7 @@ program
 
     try {
       const config = await loadConfig(opts.config);
-      await startDaemon(config);
+      await startDaemon(config, opts.config);
     } catch (err) {
       console.error(`Failed to start daemon: ${err}`);
       process.exit(1);
@@ -136,8 +138,46 @@ program
   .option('-c, --config <path>', 'Path to config file')
   .action(async (opts: { config?: string }) => {
     const config = await loadConfig(opts.config);
-    const running = await isDaemonRunning(config.daemon.socket_path);
-    process.exit(running ? 0 : 1);
+    try {
+      // Read actual bound port from file (supports port 0 / OS-assigned)
+      const portPath = join(config.daemon.home, 'dashboard.port');
+      let dashboardPort = config.daemon.dashboard_port;
+      try {
+        const portStr = await readFile(portPath, 'utf-8');
+        dashboardPort = parseInt(portStr.trim(), 10);
+      } catch {
+        // Port file not found — use config value
+      }
+      const res = await fetch(`http://127.0.0.1:${dashboardPort}/healthz`);
+      const health = await res.json() as HealthResponse;
+      console.log(JSON.stringify(health, null, 2));
+      process.exit(health.status === 'healthy' ? 0 : 1);
+    } catch {
+      // Fall back to socket check
+      const running = await isDaemonRunning(config.daemon.socket_path);
+      if (running) {
+        console.log('Daemon is running (health endpoint unavailable)');
+        process.exit(0);
+      }
+      console.log('Daemon is not running');
+      process.exit(1);
+    }
+  });
+
+program
+  .command('dashboard-token')
+  .description('Display the dashboard auth token')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (opts: { config?: string }) => {
+    const config = await loadConfig(opts.config);
+    const tokenPath = join(config.daemon.home, 'dashboard.token');
+    try {
+      const token = await readFile(tokenPath, 'utf-8');
+      console.log(token.trim());
+    } catch {
+      console.log('No dashboard token found — start the daemon first');
+      process.exit(1);
+    }
   });
 
 program
@@ -178,7 +218,18 @@ program
       try {
         const config = await loadConfig(opts.config);
         const dbPath = join(config.daemon.home, 'mcp-guard.db');
-        db = openDatabase({ path: dbPath });
+        const dbOptions: { path: string; encryptionKey?: string } = { path: dbPath };
+        if (config.daemon.encryption.enabled) {
+          const keyPath = join(config.daemon.home, 'daemon.key');
+          try {
+            const daemonKey = await readDaemonKey(keyPath);
+            dbOptions.encryptionKey = deriveDbEncryptionKey(daemonKey);
+          } catch {
+            console.error('Cannot read daemon key for encrypted database — is the daemon running?');
+            process.exit(1);
+          }
+        }
+        db = openDatabase(dbOptions);
 
         const parsedLimit = parseInt(opts.limit, 10);
         const limit = Number.isNaN(parsedLimit) || parsedLimit < 1 ? 100 : Math.min(parsedLimit, 10000);
