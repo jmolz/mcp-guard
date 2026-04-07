@@ -11,6 +11,7 @@ import { readDaemonKey } from './identity/daemon-key.js';
 import type { HealthResponse } from './dashboard/health.js';
 import { executeOAuthFlow } from './identity/oauth-flow.js';
 import { createTokenStore } from './identity/token-store.js';
+import { registerInitCommand } from './cli/init.js';
 
 const program = new Command()
   .name('mcp-guard')
@@ -356,5 +357,7 @@ authCmd
       process.exit(1);
     }
   });
+
+registerInitCommand(program);
 
 program.parse();

@@ -78,6 +78,15 @@ When a transform has no effect on the PII value (e.g., Cyrillic letter replaceme
 
 `--quick` uses `stratifiedSample()` to pick evenly-spaced items from each category (~50 per category, ~500 legitimate). This ensures full category coverage with ~30s runtime instead of 5-10 minutes.
 
+## Report Generation
+
+After writing `latest.json`, the runner calls `generateReport(result)` from `benchmarks/report/index.ts` to produce:
+- 4 SVG charts in `benchmarks/charts/` (security-detection, latency, concurrency, false-positive)
+- 3 markdown tables in `benchmarks/tables/` (security, performance, concurrency)
+- Combined report at `benchmarks/results/REPORT.md`
+
+Skip with `--no-report` flag. Charts use template-literal SVG (no external dependencies). Tests in `tests/benchmarks/report.test.ts`.
+
 ## Runner Exit Code
 
 The runner exits non-zero when ANY threshold is breached (detection rate < 95%, FP rate >= 0.1%, p50 >= 5ms, audit integrity failed). This makes it CI-ready.

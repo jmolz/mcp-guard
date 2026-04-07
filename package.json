@@ -2,7 +2,31 @@
   "name": "mcp-guard",
   "version": "0.1.0",
   "description": "Security proxy daemon for MCP servers — adds auth, rate limiting, PII detection, and audit logging",
+  "author": "Jacob Molz",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmolz/mcp-guard.git"
+  },
+  "homepage": "https://github.com/jmolz/mcp-guard#readme",
+  "bugs": {
+    "url": "https://github.com/jmolz/mcp-guard/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "security",
+    "proxy",
+    "pii",
+    "audit",
+    "rate-limiting",
+    "authentication"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "bin": {
     "mcp-guard": "./dist/cli.js"
   },
@@ -23,7 +47,8 @@
     "benchmark:quick": "tsx benchmarks/runner.ts --quick",
     "benchmark:security": "tsx benchmarks/runner.ts --suite security",
     "benchmark:legitimate": "tsx benchmarks/runner.ts --suite legitimate",
-    "benchmark:performance": "tsx benchmarks/runner.ts --suite performance"
+    "benchmark:performance": "tsx benchmarks/runner.ts --suite performance",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -50,7 +75,6 @@
   "engines": {
     "node": ">=22"
   },
-  "license": "MIT",
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3-multiple-ciphers",

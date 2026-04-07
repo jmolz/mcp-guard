@@ -20,13 +20,15 @@ import type {
 import { runSecurityBenchmark } from './security/run-security.js';
 import { runLegitimateTraffic } from './legitimate/run-legitimate.js';
 import { runPerformanceBenchmark } from './performance/run-performance.js';
+import { generateReport } from './report/index.js';
 
-function parseArgs(): { quick: boolean; suite?: string } {
+function parseArgs(): { quick: boolean; suite?: string; noReport: boolean } {
   const args = process.argv.slice(2);
   const quick = args.includes('--quick');
+  const noReport = args.includes('--no-report');
   const suiteIdx = args.indexOf('--suite');
   const suite = suiteIdx >= 0 ? args[suiteIdx + 1] : undefined;
-  return { quick, suite };
+  return { quick, suite, noReport };
 }
 
 function printSecuritySummary(results: SecurityBenchmarkResult[]): void {
@@ -105,7 +107,7 @@ function printVerdict(
   return allPass;
 }
 
-export async function runBenchmarks(options: { quick?: boolean; suite?: string }): Promise<{ result: BenchmarkSuiteResult; passed: boolean }> {
+export async function runBenchmarks(options: { quick?: boolean; suite?: string; noReport?: boolean }): Promise<{ result: BenchmarkSuiteResult; passed: boolean }> {
   console.log(`\n=== MCP-Guard Benchmark Suite${options.quick ? ' (quick mode)' : ''} ===\n`);
 
   const genOpts = { quick: options.quick };
@@ -149,6 +151,10 @@ export async function runBenchmarks(options: { quick?: boolean; suite?: string }
   await writeFile('benchmarks/results/latest.json', JSON.stringify(result, null, 2));
   console.log('\nResults written to benchmarks/results/latest.json');
 
+  if (!options.noReport) {
+    await generateReport(result);
+  }
+
   if (!verdictPassed) {
     console.log('\nBenchmark verdict: FAIL — one or more thresholds not met');
   }
@@ -157,8 +163,8 @@ export async function runBenchmarks(options: { quick?: boolean; suite?: string }
 }
 
 // Direct execution
-const { quick, suite } = parseArgs();
-runBenchmarks({ quick, suite })
+const { quick, suite, noReport } = parseArgs();
+runBenchmarks({ quick, suite, noReport })
   .then(({ passed }) => {
     if (!passed) process.exitCode = 1;
   })

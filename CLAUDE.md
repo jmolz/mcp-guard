@@ -121,8 +121,11 @@ mcp-guard/
 │   │   ├── server.ts            # HTTP server with Bearer token auth (/healthz, /api/status)
 │   │   ├── health.ts            # Health endpoint handler (healthy/degraded/unhealthy)
 │   │   └── views/               # HTML + htmx templates (Phase 4C)
+│   ├── cli/                     # CLI subcommands
+│   │   └── init.ts              # mcp-guard init (config discovery, ${VAR} placeholders)
 │   └── cli.ts                   # CLI entry point (Commander.js)
 ├── tests/                       # Test files (mirrors src/ structure)
+│   └── compat/                  # Tier 2 compatibility tests (env-gated)
 ├── benchmarks/                  # Security + performance benchmarks
 │   ├── mock-servers/            # 8 MCP server archetypes (filesystem, database, etc.)
 │   ├── security/                # 10 attack category generators (4,500+ scenarios)
@@ -131,6 +134,7 @@ mcp-guard/
 │   │   └── run-security.ts      # Security runner + audit integrity check
 │   ├── legitimate/              # 10,000+ benign requests (false positive measurement)
 │   ├── performance/             # Latency (p50/p95/p99), concurrency, throughput
+│   ├── report/                  # SVG chart + markdown table generation
 │   ├── configs/                 # Benchmark-specific YAML configs
 │   ├── runner.ts                # Orchestrator (exits non-zero on threshold breach)
 │   └── types.ts                 # BenchmarkScenario, BurstGroup, result types
@@ -259,6 +263,7 @@ When working on specific areas, read the corresponding reference:
 - **Daemon key is 0600**: Daemon key (at `{daemon.home}/daemon.key`) and Unix socket must have 0600 permissions. Verify on startup. Both `ensureDaemonKey` and `readDaemonKey` enforce this — only `ENOENT` is suppressed during key check, all other FS errors are fatal.
 - **Sampling disabled by default**: `sampling/createMessage` must be explicitly enabled per server. Capability removed from advertisement if disabled.
 - **Parameterized SQL only**: All SQLite queries use parameterized statements. No string interpolation in SQL, ever.
+- **Init never writes client configs**: `mcp-guard init` only reads client config files. Discovered env vars are emitted as `${VAR}` placeholders, never raw secret values.
 - **No `any` types in security paths**: Interceptors, auth, PII detection, and audit code must be fully typed.
 
 ### Architecture
@@ -285,4 +290,4 @@ When working on specific areas, read the corresponding reference:
 
 ### Implementation Phases
 
-The PRD defines 5 phases. Current phase: **Phase 5B (Launch)**. Phases 1-4B and 5A are complete — daemon, bridge, proxy, config (extends + floor-based merge + hot reload), CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, dashboard HTTP server with health endpoint, SQLCipher encryption at rest, OAuth 2.1 JWT auth with claims-to-role mapping, SSE + Streamable HTTP transport, role-based effective policy resolution, and benchmark infrastructure (8 mock servers, 10 security categories with 4,500+ attack scenarios, 10K+ legitimate traffic, performance harness). 342 tests across 36 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.
+The PRD defines 5 phases. **All phases complete (1 through 5B).** The project includes: daemon, bridge, proxy, config (extends + floor-based merge + hot reload), CLI (including `mcp-guard init`), interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, dashboard HTTP server with health endpoint, SQLCipher encryption at rest, OAuth 2.1 JWT auth with claims-to-role mapping, SSE + Streamable HTTP transport, role-based effective policy resolution, benchmark infrastructure (8 mock servers, 10 security categories with 4,500+ attack scenarios, 10K+ legitimate traffic, performance harness), SVG chart + markdown report generation, Docker packaging, CI/CD workflows (release, benchmarks, security scanning), and full documentation suite. 362 tests across 38 test files (+15 env-gated Tier 2 compat tests).

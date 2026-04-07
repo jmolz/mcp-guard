@@ -1,6 +1,24 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('../../package.json') as { version: string };
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+function loadVersion(): string {
+  // Walk up from the current file (or bundled dist/) to find package.json
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 5; i++) {
+    try {
+      const content = readFileSync(join(dir, 'package.json'), 'utf-8');
+      const pkg = JSON.parse(content) as { version?: string };
+      if (pkg.version) return pkg.version;
+    } catch {
+      // Not found at this level, go up
+    }
+    dir = dirname(dir);
+  }
+  return '0.0.0';
+}
+
+const VERSION = loadVersion();
 
 export interface HealthContext {
   startTime: number;
@@ -49,6 +67,6 @@ export function buildHealthResponse(ctx: HealthContext): HealthResponse {
     bridges: ctx.getBridgeCount(),
     database: dbHealthy ? 'ok' : 'error',
     last_audit_write: ctx.getLastAuditWrite(),
-    version: pkg.version,
+    version: VERSION,
   };
 }

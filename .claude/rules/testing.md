@@ -80,6 +80,19 @@ Beyond the general negative test requirement, these modules have specific negati
 - Call `resetIdCounter()` in `beforeEach` to ensure deterministic JSON-RPC IDs across test runs
 - Mock server tests must have `afterAll` cleanup hooks to kill spawned child processes
 
+### Tier 2 Compatibility Tests
+- Live in `tests/compat/tier2.test.ts` — tests MCP-Guard against real open-source MCP servers
+- Env-gated: `MCP_GUARD_TIER2=1 pnpm vitest run tests/compat/tier2.test.ts`
+- Excluded from the default `pnpm test` and the regression suite (requires real server processes + network)
+- Each server tests: `initialize`, `tools/list`, and one `tools/call`
+- Use `sampleCall` field in `ServerSpec` for deterministic tool calls
+- Tests use strong assertions: `expect(result).toBeDefined()` + `expect(error).toBeUndefined()`
+
+### CLI Tests
+- `tests/cli/init.test.ts` — mock filesystem via `vi.mock('node:fs/promises')`
+- Never touch real client config files — all paths are mocked
+- Test that `writeFile` is only ever called with the `--output` path, never client config paths
+
 ## Naming
 
 - Describe blocks: module or class name

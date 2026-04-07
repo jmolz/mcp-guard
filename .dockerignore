@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.git
+.github
+.claude
+.env*
+*.md
+!README.md
+tests
+benchmarks
+docker
+.DS_Store

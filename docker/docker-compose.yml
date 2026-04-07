@@ -1,0 +1,30 @@
+# MCP-Guard Docker Compose example
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml up
+#
+# MCP-Guard spawns upstream MCP servers as child processes (stdio transport).
+# This compose file runs MCP-Guard with a mounted config. The configured MCP
+# servers must be available inside the container (installed via npm or
+# mounted as volumes).
+
+services:
+  mcp-guard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount your config file
+      - ./mcp-guard.yaml:/app/mcp-guard.yaml:ro
+      # Persistent data (SQLite DB, daemon key, audit logs)
+      - mcp-guard-data:/home/mcp-guard/.config/mcp-guard
+      # Mount a shared data directory for filesystem server access
+      - shared-data:/data
+    environment:
+      - MCP_GUARD_CONFIG=/app/mcp-guard.yaml
+
+volumes:
+  mcp-guard-data:
+  shared-data:
