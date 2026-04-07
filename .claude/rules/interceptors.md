@@ -45,7 +45,8 @@ Interceptors receive the context and must not mutate it directly — return a de
 - **Audit tap is NOT an interceptor**: Don't add audit logic to the pipeline. The tap observes from outside. The daemon's message handler is wrapped in try/catch to guarantee audit recording even on unexpected runtime errors.
 - **Per-interceptor timeout**: Each interceptor has a configurable timeout (default 10s). The pipeline runner wraps each `execute()` in `Promise.race` with a cancellable timer. Always clear the timer in both success and error paths, and add `.catch(() => {})` to the timeout promise to suppress unhandled rejections.
 - **Short-circuit on BLOCK**: Once any interceptor returns BLOCK, remaining interceptors are skipped. The audit tap still records the full decision chain.
-- **MODIFY validation**: MODIFY decisions are validated — mutations to `method`, `name`, or `uri` fields are rejected (→ BLOCK). This prevents custom interceptors from redirecting tool calls.
+- **MODIFY validation**: MODIFY decisions are validated — mutations to the *values* of `method`, `name`, or `uri` fields are rejected (→ BLOCK). The check compares values, not key presence, because auth interceptors legitimately return the full params (minus credentials) which naturally include `name`. This prevents custom interceptors from redirecting tool calls while allowing credential stripping.
+- **Identity propagation**: When the auth interceptor returns MODIFY with `metadata.authMode` set ('oauth' or 'api_key'), the pipeline updates `ctx.identity` for downstream interceptors. The `resolvedIdentity` field on `PipelineResult` carries the final identity back to the daemon for audit and response-side context.
 - **Malformed requests → BLOCK**: `tools/call` without `name` or `resources/read` without `uri` must be blocked, not passed through. Fail-closed on malformed input.
 - **PII interceptor runs bidirectionally**: On requests (pre-upstream) and responses (post-upstream). Different actions can apply per direction.
 
@@ -76,6 +77,16 @@ Interceptors receive the context and must not mutate it directly — return a de
 - Scan-first-then-redact: scan without redaction to discover matches, determine action, only compute redacted output when action is `redact` (avoids unnecessary deep cloning for block/warn cases)
 - Custom PII type `actions` from `custom_types[*].actions` are pre-merged into the action map at interceptor creation time — they are NOT looked up at scan time via a fallback
 - `PipelineResult.finalParams` must NEVER be persisted to the audit store — it may contain redacted content that creates data retention concerns
+
+## Effective Policy Resolution
+
+The permissions and rate-limit interceptors use `resolveEffectivePermissions()` and `resolveEffectiveRateLimit()` from `effective-policy.ts` to merge server-level policy with role-level restrictions:
+
+- **Allow-lists use multi-list intersection**: Each allow-list (server + each role) is accumulated separately. A tool must match ALL lists independently. This prevents wildcard patterns in one list from widening access granted by another (e.g., server `['*']` + role `['read_*']` = only `read_*` tools pass).
+- **Deny-lists use union**: Server denials and role denials are combined. Any denial from any source blocks.
+- **Rate limits take stricter values**: Lower of server and role RPM/RPH wins. Per-tool limits from roles are merged with the same floor semantics.
+- **Capability filtering uses the same effective policy**: `filterToolsList` and `filterResourcesList` call `resolveEffectivePermissions` so capabilities advertised to the client are consistent with what the interceptor will allow.
+- The `EffectivePermissions` type uses `allowed_tools_lists: string[][]` (not a single `allowed_tools`) to support the multi-list semantics.
 
 ## Sampling Guard
 

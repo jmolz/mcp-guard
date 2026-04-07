@@ -75,11 +75,12 @@ mcp-guard/
 │   │   ├── capability-filter.ts # Filters capabilities based on policies
 │   │   └── message-router.ts    # Routes messages through interceptor pipeline
 │   ├── interceptors/            # Security interceptor pipeline
-│   │   ├── pipeline.ts          # Pipeline runner with timeout + fail-closed
-│   │   ├── types.ts             # Interceptor interface, Decision type
-│   │   ├── auth.ts              # Authentication interceptor
-│   │   ├── rate-limit.ts        # Rate limiting interceptor
-│   │   ├── permissions.ts       # Permission scoping interceptor
+│   │   ├── pipeline.ts          # Pipeline runner with timeout + fail-closed + identity propagation
+│   │   ├── types.ts             # Interceptor interface, Decision type, ResolvedIdentity
+│   │   ├── auth.ts              # Authentication interceptor (OS, API key, OAuth)
+│   │   ├── rate-limit.ts        # Rate limiting interceptor (with role-based effective limits)
+│   │   ├── permissions.ts       # Permission scoping interceptor (with role-based effective perms)
+│   │   ├── effective-policy.ts  # Floor-based merge of server + role policies
 │   │   ├── pii-detect.ts        # PII detection interceptor
 │   │   └── sampling-guard.ts    # Sampling/createMessage policy
 │   ├── pii/                     # PII detection system
@@ -94,8 +95,10 @@ mcp-guard/
 │   │   └── stdout-logger.ts     # Structured JSON stdout logger
 │   ├── identity/                # Identity and auth
 │   │   ├── os-identity.ts       # Peer credential verification (koffi FFI)
-│   │   ├── token-auth.ts        # OAuth 2.1 / token authentication
-│   │   ├── roles.ts             # Role resolution and permission mapping
+│   │   ├── token-validator.ts   # JWT validation via jose (JWKS, OIDC discovery)
+│   │   ├── token-store.ts       # OAuth token filesystem storage (0600 perms)
+│   │   ├── oauth-flow.ts        # OAuth 2.1 Authorization Code + PKCE flow
+│   │   ├── roles.ts             # Role resolution (OS + OAuth claims-to-role mapping)
 │   │   └── daemon-key.ts        # Daemon key generation and verification
 │   ├── config/                  # Configuration system
 │   │   ├── schema.ts            # Zod schema definitions (extends, locked, encryption)
@@ -169,7 +172,7 @@ Client → Bridge (stdio) → Daemon (Unix socket) → Interceptor Pipeline → 
 
 - **Fail-closed by default**: Any unhandled error in the interceptor pipeline blocks the request
 - Use typed error classes extending `McpGuardError` base class
-- Error classes: `ConfigError`, `AuthError`, `PipelineError`, `StorageError`, `BridgeError`, `DashboardError`
+- Error classes: `ConfigError`, `AuthError`, `PipelineError`, `StorageError`, `BridgeError`, `DashboardError`, `OAuthError`
 - Never swallow errors silently — log at minimum, block if in security path
 - External boundaries (config loading, upstream connections, socket I/O) use try/catch with typed errors
 - Internal module boundaries trust their inputs (validated at the boundary)
@@ -264,4 +267,4 @@ When working on specific areas, read the corresponding reference:
 
 ### Implementation Phases
 
-The PRD defines 5 phases. Current phase: **Phase 4B (OAuth + SSE)**. Phases 1-3 and 4A are complete — daemon, bridge, proxy, config (with extends + floor-based merge + hot reload), CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, dashboard HTTP server with health endpoint, SQLCipher encryption at rest, and 234 tests across 27 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.
+The PRD defines 5 phases. Current phase: **Phase 5 (Benchmarks + Launch)**. Phases 1-4B are complete — daemon, bridge, proxy, config (extends + floor-based merge + hot reload), CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, dashboard HTTP server with health endpoint, SQLCipher encryption at rest, OAuth 2.1 JWT auth with claims-to-role mapping, SSE + Streamable HTTP transport, role-based effective policy resolution, and 294 tests across 34 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.

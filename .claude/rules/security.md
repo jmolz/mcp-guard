@@ -3,9 +3,11 @@ paths:
   - "src/identity/**"
   - "src/interceptors/auth.ts"
   - "src/interceptors/permissions.ts"
+  - "src/interceptors/effective-policy.ts"
   - "src/interceptors/sampling-guard.ts"
   - "src/pii/**"
   - "src/audit/**"
+  - "src/bridge/index.ts"
 ---
 
 # Security Rules
@@ -49,9 +51,24 @@ Every decision point defaults to BLOCK:
 - This is a defense-in-depth layer on top of daemon.key
 
 ### OAuth 2.1 (enterprise mode)
-- Token validated via `jose` (JWT) or `oauth4webapi` (introspection)
-- Claims mapped to roles defined in config
-- Tokens are never logged in audit (log the resolved identity, not the credential)
+- Token validated via `jose` (JWT) with OIDC discovery for JWKS endpoint
+- Audience always validated — defaults to `client_id` when not explicitly configured (prevents cross-API token reuse)
+- Claims mapped to roles via `config.auth.oauth.claims_to_roles` — unmapped claims return empty roles (fail-closed, NOT `['default']`)
+- Auth interceptor BLOCKS on empty roles with `OAUTH_NO_ROLES` code
+- Bearer tokens only injected by bridge when `auth.mode === 'oauth'` — prevents credential leakage in OS/API key modes
+- `_bearer_token` stripped from params before upstream forwarding (same pattern as `_api_key`)
+- BLOCK reason messages sanitized via `sanitizeOAuthError()` — strips JWT header segments (`eyJ...`) and long base64url sequences before audit storage
+- Token store files: 0600 permissions with explicit `chmod` on every write (not just creation)
+- Token store directory: 0700 permissions
+- Token store path traversal prevented by name sanitization (`/[^a-zA-Z0-9_-]/g → '_'`)
+- OAuth tokens are never logged — log `oauthSubject` and `roles` only
+- Pipeline propagates OAuth-resolved identity to downstream interceptors via `resolvedIdentity` on `PipelineResult`
+- Daemon uses pipeline-resolved identity (not OS identity) for audit recording when available
+
+### API Key Role Propagation
+- API key auth interceptor returns matched key's roles in MODIFY `metadata: { authMode: 'api_key', roles }`
+- Pipeline propagates API key roles to downstream interceptors (same mechanism as OAuth)
+- Rate limits and permissions use the API key's configured roles, not the OS identity
 
 ## PII Handling
 
