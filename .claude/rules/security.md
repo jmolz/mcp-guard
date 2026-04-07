@@ -78,3 +78,24 @@ Every decision point defaults to BLOCK:
 - Never log credentials (daemon.key, OAuth tokens, API keys, upstream server credentials)
 - Environment variable interpolation (`${VAR}`) in config must not log the resolved value at info level (debug only, and even then redact known secret fields)
 - Dashboard auth token: generated once, displayed only via `mcp-guard dashboard-token`, never logged
+
+## Key Derivation
+
+- SQLCipher encryption key derived via `hkdfSync('sha256', daemonKey, 'mcp-guard', 'mcp-guard-db-encryption', 32)`
+- Never use the raw daemon.key as a database password — always derive with HKDF for domain separation
+- Encryption key validated as hex-only before passing to SQLCipher PRAGMA (prevents SQL injection)
+- CLI commands that read the DB (e.g., `mcp-guard logs`) must also derive and pass the key when encryption is enabled
+
+## Config Extends Security
+
+- `extends.url` must be HTTPS (enforced by Zod schema refine); HTTP allowed only for loopback addresses
+- SHA-256 hash mismatch on live fetch is immediately fatal — never falls back to cache
+- This prevents a MITM from serving tampered content that still falls back to the "good" cached version
+- Cache files are re-verified on every read (defense against cache corruption/tampering)
+
+## PII Custom Type Merge Security
+
+- Personal configs cannot weaken base custom PII type definitions
+- When both base and personal define the same custom type name: patterns are unioned (base always preserved), actions take the stricter severity per direction
+- Personal cannot replace base patterns with a never-matching regex (union preserves all base patterns)
+- Base label is preserved (personal cannot rename to obscure the type's purpose)

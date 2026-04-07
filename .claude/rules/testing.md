@@ -60,6 +60,19 @@ describe('RegexDetector', () => {
 - Prefer real implementations over mocks when practical (especially for SQLite — use in-memory databases)
 - Never mock the interceptor pipeline in pipeline tests — test the real chain
 
+### E2E Test Isolation
+- **Dashboard port**: Always use `dashboard_port: 0` in test configs — OS assigns ephemeral port, prevents parallel test conflicts
+- **Actual port discovery**: Use `daemonHandle.getDashboardPort()` to get the OS-assigned port for HTTP assertions
+- **HTTP test servers**: For fetcher/extends tests, spin up `node:http` servers on port 0 — `server.address().port` gives the actual port
+- **Temp directories**: `mkdtemp(join(tmpdir(), 'mcp-guard-{testname}-'))` for full isolation; clean up in `afterEach`/`afterAll`
+
+### Security-Critical Negative Tests
+Beyond the general negative test requirement, these modules have specific negative patterns:
+- **Config merger**: Each relaxation direction must have a test proving it fails (10 negative tests in `merger.test.ts`)
+- **Config fetcher**: Hash mismatch on live fetch must NOT fall back to cache — separate test from cache-miss scenario
+- **PII custom types**: Personal cannot weaken base type patterns or actions — test proves union + stricter action
+- **Locked policies**: Test that the *entire* personal policy is ignored, not just individual fields
+
 ## Naming
 
 - Describe blocks: module or class name

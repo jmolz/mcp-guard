@@ -98,19 +98,19 @@ mcp-guard/
 │   │   ├── roles.ts             # Role resolution and permission mapping
 │   │   └── daemon-key.ts        # Daemon key generation and verification
 │   ├── config/                  # Configuration system
-│   │   ├── schema.ts            # Zod schema definitions
-│   │   ├── loader.ts            # YAML loading with extends resolution
-│   │   ├── merger.ts            # Floor-based merge semantics
-│   │   ├── validator.ts         # Config validation
-│   │   └── watcher.ts           # Hot reload file watcher
+│   │   ├── schema.ts            # Zod schema definitions (extends, locked, encryption)
+│   │   ├── loader.ts            # YAML loading with extends resolution + reloadConfig
+│   │   ├── fetcher.ts           # HTTP fetch + SHA-256 verification + local cache
+│   │   ├── merger.ts            # Floor-based merge semantics (security-critical)
+│   │   └── watcher.ts           # Hot reload file watcher (fs.watch + debounce)
 │   ├── storage/                 # Database layer
 │   │   ├── sqlite.ts            # SQLite connection with WAL + optional SQLCipher
 │   │   ├── migrations.ts        # Schema migrations
 │   │   └── rate-limit-store.ts  # RateLimitStore interface + SQLite impl
 │   ├── dashboard/               # Web dashboard
-│   │   ├── server.ts            # HTTP server with auth
-│   │   ├── health.ts            # /healthz endpoint
-│   │   └── views/               # HTML + htmx templates
+│   │   ├── server.ts            # HTTP server with Bearer token auth (/healthz, /api/status)
+│   │   ├── health.ts            # Health endpoint handler (healthy/degraded/unhealthy)
+│   │   └── views/               # HTML + htmx templates (Phase 4C)
 │   └── cli.ts                   # CLI entry point (Commander.js)
 ├── tests/                       # Test files (mirrors src/ structure)
 ├── benchmarks/                  # Security + performance benchmarks
@@ -137,7 +137,7 @@ Client → Bridge (stdio) → Daemon (Unix socket) → Interceptor Pipeline → 
                                                   Audit Tap (structural observer)
 ```
 
-**Request path:** Auth → RateLimit → Permissions → PII Detect → [upstream] → PII Detect → [client]
+**Request path:** Auth → RateLimit → Permissions → SamplingGuard → PII Detect → [upstream] → PII Detect → [client]
 
 ### Key Architectural Invariants
 
@@ -169,7 +169,7 @@ Client → Bridge (stdio) → Daemon (Unix socket) → Interceptor Pipeline → 
 
 - **Fail-closed by default**: Any unhandled error in the interceptor pipeline blocks the request
 - Use typed error classes extending `McpGuardError` base class
-- Error classes: `ConfigError`, `AuthError`, `PipelineError`, `StorageError`, `BridgeError`
+- Error classes: `ConfigError`, `AuthError`, `PipelineError`, `StorageError`, `BridgeError`, `DashboardError`
 - Never swallow errors silently — log at minimum, block if in security path
 - External boundaries (config loading, upstream connections, socket I/O) use try/catch with typed errors
 - Internal module boundaries trust their inputs (validated at the boundary)
@@ -258,4 +258,4 @@ When working on specific areas, read the corresponding reference:
 
 ### Implementation Phases
 
-The PRD defines 5 phases. Current phase: **Phase 4 (Enterprise Features)**. Phases 1-3 are complete — daemon, bridge, proxy, config, CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, and 179 tests across 19 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.
+The PRD defines 5 phases. Current phase: **Phase 4B (OAuth + SSE)**. Phases 1-3 and 4A are complete — daemon, bridge, proxy, config (with extends + floor-based merge + hot reload), CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, dashboard HTTP server with health endpoint, SQLCipher encryption at rest, and 234 tests across 27 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.

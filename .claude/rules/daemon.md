@@ -49,12 +49,30 @@ Shutdown uses a **single unified path** via `ShutdownHandle` returned by `regist
 Signal handlers use `process.once` (not `process.on`) to prevent listener accumulation in tests.
 
 **Shutdown sequence:**
+0. Pre-shutdown hooks run (config watcher stopped, dashboard HTTP server closed) — wrapped in try/catch so failures don't abort shutdown
 1. SIGTERM/SIGINT received (or programmatic `shutdown()` called)
 2. Socket server closed — sends `{ type: 'shutdown' }` to connected bridges
 3. Upstream servers disconnected
 4. SQLite WAL checkpointed and DB closed (try/catch — safe if already closed)
 5. PID file removed
 6. Signal handlers call `process.exit(0)` after completion (programmatic callers do not)
+
+## Dashboard HTTP Server
+
+- Binds to `127.0.0.1:{dashboard_port}` (port 0 = OS-assigned ephemeral port)
+- Persists actual bound port to `{daemon.home}/dashboard.port` and auth token to `{daemon.home}/dashboard.token` (both 0600)
+- `/healthz` — unauthenticated (for k8s liveness probes), returns `HealthResponse` JSON with 200/503
+- `/api/status` — requires `Authorization: Bearer <token>`, constant-time token comparison via `timingSafeEqual`
+- Token auto-generated via `randomBytes(32).toString('hex')` if not configured
+- Health status logic: `healthy` (all servers connected + DB ok), `degraded` (some disconnected), `unhealthy` (DB error or no servers)
+- `last_audit_write` tracked by audit tap, wired into health context
+
+## DaemonHandle Interface
+
+`startDaemon(config, configPath?)` returns `DaemonHandle`:
+- `shutdown()` — trigger graceful shutdown
+- `getDashboardPort()` — actual bound port (important when using port 0)
+- `getDashboardToken()` — auth token for /api/status
 
 ## MCP Proxy Pattern
 
