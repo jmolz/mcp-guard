@@ -73,6 +73,13 @@ Beyond the general negative test requirement, these modules have specific negati
 - **PII custom types**: Personal cannot weaken base type patterns or actions — test proves union + stricter action
 - **Locked policies**: Test that the *entire* personal policy is ignored, not just individual fields
 
+### Benchmark Tests
+- Benchmark tests live in `tests/benchmarks/` (not `benchmarks/` — keep test files under `tests/`)
+- `generators.test.ts` — validates scenario counts (≥450 per category), structure, Luhn CCs, zero PII in legitimate traffic, quick mode coverage
+- `mock-servers.test.ts` — spawns each mock server, sends `initialize` + `tools/list`, verifies expected tool names
+- Call `resetIdCounter()` in `beforeEach` to ensure deterministic JSON-RPC IDs across test runs
+- Mock server tests must have `afterAll` cleanup hooks to kill spawned child processes
+
 ## Naming
 
 - Describe blocks: module or class name

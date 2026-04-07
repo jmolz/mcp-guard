@@ -18,7 +18,12 @@
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "benchmark": "tsx benchmarks/runner.ts",
+    "benchmark:quick": "tsx benchmarks/runner.ts --quick",
+    "benchmark:security": "tsx benchmarks/runner.ts --suite security",
+    "benchmark:legitimate": "tsx benchmarks/runner.ts --suite legitimate",
+    "benchmark:performance": "tsx benchmarks/runner.ts --suite performance"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

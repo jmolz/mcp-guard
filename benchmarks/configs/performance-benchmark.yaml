@@ -1,0 +1,36 @@
+# Performance benchmark config — standard policies for latency measurement.
+# Uses a single server for simple, repeatable requests.
+
+servers:
+  filesystem:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/filesystem.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools: []
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 10000000
+      sampling:
+        enabled: false
+
+daemon:
+  socket_path: "__SOCKET_PATH__"
+  home: "__HOME__"
+  shutdown_timeout: 10
+  log_level: warn
+  dashboard_port: 0
+
+pii:
+  enabled: true
+  confidence_threshold: 0.8
+
+audit:
+  enabled: true
+  stdout: false
+  retention_days: 1
+
+interceptors:
+  timeout: 10

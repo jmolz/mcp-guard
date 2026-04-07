@@ -49,6 +49,13 @@ pnpm lint:fix             # ESLint auto-fix
 pnpm format               # Prettier format
 pnpm typecheck            # tsc --noEmit
 
+# Benchmarks
+pnpm benchmark            # Full benchmark suite (~5-10 min)
+pnpm benchmark:quick      # Stratified sample (~30s)
+pnpm benchmark:security   # Security scenarios only
+pnpm benchmark:legitimate # False positive measurement only
+pnpm benchmark:performance # Latency + concurrency only
+
 # Full Validation (run before every commit)
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
@@ -117,6 +124,16 @@ mcp-guard/
 │   └── cli.ts                   # CLI entry point (Commander.js)
 ├── tests/                       # Test files (mirrors src/ structure)
 ├── benchmarks/                  # Security + performance benchmarks
+│   ├── mock-servers/            # 8 MCP server archetypes (filesystem, database, etc.)
+│   ├── security/                # 10 attack category generators (4,500+ scenarios)
+│   │   ├── generator.ts         # Registry, builder helpers, stratifiedSample
+│   │   ├── categories/          # permission-bypass, pii-evasion, rate-limit, etc.
+│   │   └── run-security.ts      # Security runner + audit integrity check
+│   ├── legitimate/              # 10,000+ benign requests (false positive measurement)
+│   ├── performance/             # Latency (p50/p95/p99), concurrency, throughput
+│   ├── configs/                 # Benchmark-specific YAML configs
+│   ├── runner.ts                # Orchestrator (exits non-zero on threshold breach)
+│   └── types.ts                 # BenchmarkScenario, BurstGroup, result types
 ├── docker/                      # Dockerfile, docker-compose
 ├── .github/workflows/           # CI, release, security scanning
 └── docs/                        # User-facing documentation
@@ -226,6 +243,7 @@ When working on specific areas, read the corresponding reference:
 | Security patterns | `.claude/rules/security.md` | Auth, crypto, permissions, fail-closed |
 | Config system | `.claude/rules/config.md` | Schema, loader, merger, validation |
 | Testing strategy | `.claude/rules/testing.md` | Writing tests for any module |
+| Benchmarks | `.claude/rules/benchmarks.md` | Adding scenarios, mock servers, running benchmarks |
 | Full PRD | `.claude/PRD.md` | Feature specs, implementation phases |
 | Architecture deep-dive | `.claude/docs/architecture.md` | System design reference |
 
@@ -267,4 +285,4 @@ When working on specific areas, read the corresponding reference:
 
 ### Implementation Phases
 
-The PRD defines 5 phases. Current phase: **Phase 5 (Benchmarks + Launch)**. Phases 1-4B are complete — daemon, bridge, proxy, config (extends + floor-based merge + hot reload), CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, dashboard HTTP server with health endpoint, SQLCipher encryption at rest, OAuth 2.1 JWT auth with claims-to-role mapping, SSE + Streamable HTTP transport, role-based effective policy resolution, and 294 tests across 34 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.
+The PRD defines 5 phases. Current phase: **Phase 5B (Launch)**. Phases 1-4B and 5A are complete — daemon, bridge, proxy, config (extends + floor-based merge + hot reload), CLI, interceptor pipeline (auth, rate-limit, permissions, sampling-guard, pii-detect), PII detection with Luhn validation, bidirectional response scanning, sampling guard, capability filtering, audit system with PII metadata, dashboard HTTP server with health endpoint, SQLCipher encryption at rest, OAuth 2.1 JWT auth with claims-to-role mapping, SSE + Streamable HTTP transport, role-based effective policy resolution, and benchmark infrastructure (8 mock servers, 10 security categories with 4,500+ attack scenarios, 10K+ legitimate traffic, performance harness). 342 tests across 36 test files. See `.claude/PRD.md` lines 640-655 for the Phase 4 checklist.
