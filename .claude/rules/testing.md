@@ -93,6 +93,12 @@ Beyond the general negative test requirement, these modules have specific negati
 - Never touch real client config files — all paths are mocked
 - Test that `writeFile` is only ever called with the `--output` path, never client config paths
 
+### Cross-Platform Test Requirements
+- CI runs on Linux (`ubuntu-latest`), local dev is macOS. Tests must pass on both.
+- Tests using platform-specific paths (e.g., `~/Library/Application Support/`) must mock `node:os` so `platform()` returns the expected value (typically `'darwin'`).
+- `init.test.ts` mocks `node:os` to return `platform: 'darwin'` — the fixture paths match the macOS branch in `getClientConfigs()`.
+- Any new test that depends on `os.platform()`, `os.homedir()`, or conditional path logic must include an explicit `vi.mock('node:os')` to be deterministic.
+
 ## Naming
 
 - Describe blocks: module or class name

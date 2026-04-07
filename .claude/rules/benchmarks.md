@@ -87,9 +87,14 @@ After writing `latest.json`, the runner calls `generateReport(result)` from `ben
 
 Skip with `--no-report` flag. Charts use template-literal SVG (no external dependencies). Tests in `tests/benchmarks/report.test.ts`.
 
-## Runner Exit Code
+## Runner Exit Code and Thresholds
 
-The runner exits non-zero when ANY threshold is breached (detection rate < 95%, FP rate >= 0.1%, p50 >= 5ms, audit integrity failed). This makes it CI-ready.
+The runner exits non-zero when ANY threshold is breached. Default thresholds: detection rate >= 95%, FP rate < 0.1%, p50 < 5ms, audit integrity passed.
+
+The detection threshold is configurable via `--min-detection <rate>`:
+- **Full suite**: Use default 0.95 (accurate with 4,500+ scenarios)
+- **Quick mode in CI**: Use `--min-detection 0.85` (stratified sampling underrepresents, ~89% typical)
+- Never set quick-mode CI threshold above 0.90 — sampling noise makes it unreliable
 
 ## Content Safety in Legitimate Traffic
 
