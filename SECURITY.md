@@ -15,7 +15,7 @@ Only the latest minor release receives security updates.
 Instead, please report vulnerabilities through one of these channels:
 
 1. **GitHub Security Advisories** (preferred): [Report a vulnerability](https://github.com/jmolz/mcp-guard/security/advisories/new)
-2. **Email**: security@jmolz.dev
+2. **Email**: jmolz12@gmail.com
 
 ### What to Include
 

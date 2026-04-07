@@ -6,7 +6,7 @@ Please read the full text at the link above.
 
 ## Enforcement
 
-Instances of unacceptable behavior may be reported to the project maintainers at conduct@jmolz.dev. All complaints will be reviewed and investigated promptly and fairly.
+Instances of unacceptable behavior may be reported to the project maintainers at jmolz12@gmail.com. All complaints will be reviewed and investigated promptly and fairly.
 
 ## Attribution
 
