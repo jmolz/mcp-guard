@@ -15,3 +15,9 @@ export const MAX_MESSAGE_SIZE = 4 * 1024 * 1024; // 4MB
 export const DEFAULT_EXTENDS_CACHE_DIR = 'extends-cache';
 export const EXTENDS_FETCH_TIMEOUT = 10_000; // 10s
 export const CONFIG_RELOAD_DEBOUNCE = 250; // 250ms
+
+// OAuth
+export const OAUTH_TOKEN_DIR = 'oauth-tokens';
+export const OAUTH_TOKEN_FILE_MODE = 0o600;
+export const OAUTH_CALLBACK_PORT = 8399;
+export const OAUTH_CALLBACK_TIMEOUT = 120_000; // 2 min for user to complete browser auth

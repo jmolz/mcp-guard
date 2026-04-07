@@ -410,4 +410,28 @@ describe('Config Merger — Floor-based merge', () => {
     expect(merged.servers['test'].policy.permissions.denied_tools).toEqual(['delete']);
     expect(merged.servers['test'].policy.rate_limit.requests_per_minute).toBe(50);
   });
+
+  it('preserves upstream_auth_token from base server during merge', () => {
+    const base = configSchema.parse({
+      servers: {
+        remote: {
+          transport: 'sse',
+          url: 'https://mcp.example.com/sse',
+          upstream_auth_token: 'base-secret-token',
+        },
+      },
+    });
+    const personal = configSchema.parse({
+      servers: {
+        remote: {
+          transport: 'sse',
+          url: 'https://mcp.example.com/sse',
+          policy: { rate_limit: { requests_per_minute: 5 } },
+        },
+      },
+    });
+
+    const merged = mergeConfigs(base, personal);
+    expect(merged.servers['remote'].upstream_auth_token).toBe('base-secret-token');
+  });
 });

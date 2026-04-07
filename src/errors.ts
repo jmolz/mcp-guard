@@ -43,3 +43,9 @@ export class DashboardError extends McpGuardError {
     super(message, 'DASHBOARD_ERROR');
   }
 }
+
+export class OAuthError extends McpGuardError {
+  constructor(message: string) {
+    super(message, 'OAUTH_ERROR');
+  }
+}

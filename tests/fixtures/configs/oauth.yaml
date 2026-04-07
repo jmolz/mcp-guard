@@ -1,0 +1,33 @@
+servers:
+  test-server:
+    command: echo
+    transport: stdio
+
+auth:
+  mode: oauth
+  oauth:
+    issuer: https://auth.example.com
+    client_id: test-client-id
+    scopes:
+      - openid
+      - profile
+    claims_to_roles:
+      claim_name: roles
+      mapping:
+        admin:
+          - admin
+        viewer:
+          - reader
+  roles:
+    admin:
+      permissions:
+        allowed_tools:
+          - "*"
+      rate_limit:
+        requests_per_minute: 100
+    reader:
+      permissions:
+        denied_tools:
+          - "delete_*"
+      rate_limit:
+        requests_per_minute: 30

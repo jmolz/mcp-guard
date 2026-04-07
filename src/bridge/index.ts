@@ -1,12 +1,14 @@
 import { connect } from 'node:net';
 import { authenticateToDaemon } from './auth.js';
 import { isDaemonRunning, autoStartDaemon } from '../daemon/auto-start.js';
-import { DEFAULT_SOCKET_PATH, DEFAULT_DAEMON_KEY_PATH, MAX_MESSAGE_SIZE } from '../constants.js';
+import { DEFAULT_SOCKET_PATH, DEFAULT_DAEMON_KEY_PATH, DEFAULT_HOME, MAX_MESSAGE_SIZE } from '../constants.js';
 import { BridgeError } from '../errors.js';
+import { createTokenStore } from '../identity/token-store.js';
 
 export interface BridgeOptions {
   socketPath?: string;
   keyPath?: string;
+  home?: string;
 }
 
 export async function startBridge(
@@ -16,6 +18,29 @@ export async function startBridge(
 ): Promise<void> {
   const socketPath = options?.socketPath ?? DEFAULT_SOCKET_PATH;
   const keyPath = options?.keyPath ?? DEFAULT_DAEMON_KEY_PATH;
+  const home = options?.home ?? DEFAULT_HOME;
+
+  // 0. Load stored OAuth token only when config uses OAuth mode
+  // Never inject tokens in non-OAuth modes to prevent credential leakage to upstream servers
+  let bearerToken: string | undefined;
+  try {
+    const { loadConfig } = await import('../config/loader.js');
+    const bridgeConfig = await loadConfig(configPath);
+    if (bridgeConfig.auth.mode === 'oauth') {
+      const tokenStore = createTokenStore(home);
+      const stored = await tokenStore.load(serverName) ?? await tokenStore.load('default');
+      if (stored) {
+        const now = Math.floor(Date.now() / 1000);
+        if (stored.expires_at > now) {
+          bearerToken = stored.access_token;
+        } else {
+          process.stderr.write('OAuth token expired — run `mcp-guard auth login` to refresh\n');
+        }
+      }
+    }
+  } catch {
+    // Config or token read failed — proceed without (daemon will BLOCK if oauth mode)
+  }
 
   // 1. Ensure daemon is running
   if (!(await isDaemonRunning(socketPath))) {
@@ -50,6 +75,12 @@ export async function startBridge(
 
       try {
         const data = JSON.parse(line);
+        // Inject bearer token into MCP message params if available
+        if (bearerToken && data.params) {
+          data.params = { ...data.params, _bearer_token: bearerToken };
+        } else if (bearerToken && !data.params) {
+          data.params = { _bearer_token: bearerToken };
+        }
         // Send as framed bridge message
         const msg = JSON.stringify({ type: 'mcp', server: serverName, data });
         const payload = Buffer.from(msg, 'utf-8');

@@ -19,7 +19,9 @@ export function createServerManager(config: McpGuardConfig, logger: Logger): Ser
 
       const results = await Promise.allSettled(
         entries.map(async ([name, serverConfig]) => {
-          const client = await createUpstreamClient(name, serverConfig, logger);
+          const client = await createUpstreamClient(name, serverConfig, logger, {
+            authToken: serverConfig.upstream_auth_token,
+          });
           clients.set(name, client);
           await client.connect();
         }),

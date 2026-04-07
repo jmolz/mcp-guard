@@ -61,9 +61,15 @@ export function createPipeline(options: PipelineOptions) {
 
       const durationMs = Date.now() - start;
 
-      // Validate MODIFY decisions — reject mutations to method or other protected fields
+      // Validate MODIFY decisions — reject mutations to method, tool name, or resource URI
+      // Only block if the value actually CHANGED (not just present in the returned params)
       if (decision.action === 'MODIFY') {
-        if ('method' in decision.params || 'name' in decision.params || 'uri' in decision.params) {
+        const mutatedProtected =
+          ('method' in decision.params && decision.params['method'] !== ctx.message.method) ||
+          ('name' in decision.params && decision.params['name'] !== currentParams?.['name']) ||
+          ('uri' in decision.params && decision.params['uri'] !== currentParams?.['uri']);
+
+        if (mutatedProtected) {
           logger.error('Interceptor attempted to modify protected fields', {
             interceptor: interceptor.name,
           });
@@ -89,6 +95,33 @@ export function createPipeline(options: PipelineOptions) {
         // Apply modified params for next interceptor
         currentParams = { ...currentParams, ...decision.params };
         ctx = { ...ctx, message: { ...ctx.message, params: currentParams } };
+
+        // If auth interceptor resolved identity (OAuth or API key), propagate to downstream
+        const authMode = decision.metadata?.['authMode'] as string | undefined;
+        if (authMode && decision.metadata?.['roles']) {
+          const roles = decision.metadata['roles'] as string[];
+          if (authMode === 'oauth') {
+            ctx = {
+              ...ctx,
+              identity: {
+                ...ctx.identity,
+                roles,
+                username: (decision.metadata['oauthSubject'] as string) ?? ctx.identity.username,
+                authMode: 'oauth',
+                oauthSubject: decision.metadata['oauthSubject'] as string,
+              },
+            };
+          } else if (authMode === 'api_key') {
+            ctx = {
+              ...ctx,
+              identity: {
+                ...ctx.identity,
+                roles,
+                authMode: 'api_key',
+              },
+            };
+          }
+        }
       }
 
       decisions.push({
@@ -111,6 +144,7 @@ export function createPipeline(options: PipelineOptions) {
       allowed: true,
       decisions,
       finalParams: currentParams,
+      resolvedIdentity: ctx.identity,
     };
   }
 

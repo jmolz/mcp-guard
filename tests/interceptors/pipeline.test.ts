@@ -234,4 +234,83 @@ describe('Pipeline runner', () => {
 
     expect(result.decisions[0].durationMs).toBeGreaterThanOrEqual(15);
   });
+
+  it('MODIFY with OAuth metadata propagates identity to downstream interceptors', async () => {
+    // Simulate auth interceptor returning MODIFY with OAuth identity in metadata
+    const authInterceptor: Interceptor = {
+      name: 'auth',
+      execute: vi.fn(async () => ({
+        action: 'MODIFY',
+        params: { arguments: { text: 'hello' } },
+        metadata: {
+          authMode: 'oauth',
+          roles: ['admin', 'editor'],
+          oauthSubject: 'oauth-user-1',
+        },
+      }) as InterceptorDecision),
+    };
+
+    // Downstream interceptor that captures the context it receives
+    let capturedIdentity: InterceptorContext['identity'] | undefined;
+    const downstream: Interceptor = {
+      name: 'checker',
+      execute: vi.fn(async (ctx: InterceptorContext) => {
+        capturedIdentity = ctx.identity;
+        return { action: 'PASS' } as InterceptorDecision;
+      }),
+    };
+
+    const pipeline = createPipeline({
+      interceptors: [authInterceptor, downstream],
+      timeout: 5000,
+      logger: mockLogger(),
+    });
+
+    const result = await pipeline.execute(makeContext());
+
+    expect(result.allowed).toBe(true);
+    expect(capturedIdentity).toBeDefined();
+    expect(capturedIdentity!.username).toBe('oauth-user-1');
+    expect(capturedIdentity!.roles).toEqual(['admin', 'editor']);
+    expect(capturedIdentity!.authMode).toBe('oauth');
+    expect(capturedIdentity!.oauthSubject).toBe('oauth-user-1');
+  });
+
+  it('MODIFY with API key metadata propagates roles to downstream interceptors', async () => {
+    const apiKeyInterceptor: Interceptor = {
+      name: 'auth',
+      execute: vi.fn(async () => ({
+        action: 'MODIFY',
+        params: { arguments: { text: 'hello' } },
+        metadata: {
+          authMode: 'api_key',
+          roles: ['admin'],
+        },
+      }) as InterceptorDecision),
+    };
+
+    let capturedIdentity: InterceptorContext['identity'] | undefined;
+    const downstream: Interceptor = {
+      name: 'checker',
+      execute: vi.fn(async (ctx: InterceptorContext) => {
+        capturedIdentity = ctx.identity;
+        return { action: 'PASS' } as InterceptorDecision;
+      }),
+    };
+
+    const pipeline = createPipeline({
+      interceptors: [apiKeyInterceptor, downstream],
+      timeout: 5000,
+      logger: mockLogger(),
+    });
+
+    const result = await pipeline.execute(makeContext());
+
+    expect(result.allowed).toBe(true);
+    expect(capturedIdentity).toBeDefined();
+    expect(capturedIdentity!.roles).toEqual(['admin']);
+    expect(capturedIdentity!.authMode).toBe('api_key');
+    // Username should remain the OS identity for API key mode
+    expect(capturedIdentity!.username).toBe('testuser');
+  });
 });

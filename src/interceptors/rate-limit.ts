@@ -1,6 +1,7 @@
 import type { McpGuardConfig } from '../config/schema.js';
 import type { RateLimitStore } from '../storage/rate-limit-store.js';
 import type { Interceptor, InterceptorContext, InterceptorDecision } from './types.js';
+import { resolveEffectiveRateLimit } from './effective-policy.js';
 
 export function createRateLimitInterceptor(
   store: RateLimitStore,
@@ -15,7 +16,12 @@ export function createRateLimitInterceptor(
         return { action: 'PASS' };
       }
 
-      const rateConfig = serverConfig.policy.rate_limit;
+      // Merge server-level + role-level rate limits (floor-based: stricter wins)
+      const rateConfig = resolveEffectiveRateLimit(
+        serverConfig.policy.rate_limit,
+        ctx.identity,
+        config,
+      );
 
       // Check server-level rate limit
       if (rateConfig.requests_per_minute) {

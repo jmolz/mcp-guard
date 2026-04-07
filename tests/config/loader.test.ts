@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { loadConfig } from '../../src/config/loader.js';
+import { configSchema } from '../../src/config/schema.js';
 import { ConfigError } from '../../src/errors.js';
 
 const FIXTURES = join(import.meta.dirname, '..', 'fixtures', 'configs');
@@ -57,5 +58,49 @@ describe('loadConfig', () => {
     const config = await loadConfig(join(FIXTURES, 'valid.yaml'));
     expect(config).toBeDefined();
     expect(config.servers).toBeDefined();
+  });
+
+  describe('OAuth config schema', () => {
+    it('parses auth.mode oauth with valid auth.oauth', async () => {
+      const config = await loadConfig(join(FIXTURES, 'oauth.yaml'));
+      expect(config.auth.mode).toBe('oauth');
+      expect(config.auth.oauth).toBeDefined();
+      expect(config.auth.oauth!.issuer).toBe('https://auth.example.com');
+      expect(config.auth.oauth!.client_id).toBe('test-client-id');
+    });
+
+    it('rejects auth.mode oauth without auth.oauth config', () => {
+      expect(() =>
+        configSchema.parse({
+          servers: { test: { command: 'echo' } },
+          auth: { mode: 'oauth' },
+        }),
+      ).toThrow('auth.oauth config required');
+    });
+
+    it('parses transport streamable-http with url', () => {
+      const config = configSchema.parse({
+        servers: {
+          remote: {
+            transport: 'streamable-http',
+            url: 'https://mcp.example.com/stream',
+          },
+        },
+      });
+      expect(config.servers['remote'].transport).toBe('streamable-http');
+      expect(config.servers['remote'].url).toBe('https://mcp.example.com/stream');
+    });
+
+    it('parses transport sse with url', () => {
+      const config = configSchema.parse({
+        servers: {
+          remote: {
+            transport: 'sse',
+            url: 'https://mcp.example.com/sse',
+          },
+        },
+      });
+      expect(config.servers['remote'].transport).toBe('sse');
+    });
   });
 });

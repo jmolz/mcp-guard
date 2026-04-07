@@ -27,6 +27,10 @@ export interface ResolvedIdentity {
   pid?: number;
   username: string;
   roles: string[];
+  /** How this identity was established */
+  authMode?: 'os' | 'api_key' | 'oauth';
+  /** OAuth 'sub' claim, if authenticated via OAuth */
+  oauthSubject?: string;
 }
 
 export interface Interceptor {
@@ -42,4 +46,6 @@ export interface PipelineResult {
     durationMs: number;
   }>;
   finalParams?: Record<string, unknown>;
+  /** Identity as resolved by the pipeline (may differ from initial if auth overrode it) */
+  resolvedIdentity?: ResolvedIdentity;
 }

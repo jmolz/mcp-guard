@@ -37,7 +37,10 @@ export const serverSchema = z.object({
   args: z.array(z.string()).default([]),
   env: z.record(z.string()).default({}),
   url: z.string().url().optional(),
-  transport: z.enum(['stdio', 'sse']).default('stdio'),
+  transport: z.enum(['stdio', 'sse', 'streamable-http']).default('stdio'),
+  /** Bearer token for authenticating MCP-Guard to the upstream HTTP server.
+   *  Use env var interpolation for security: upstream_auth_token: "${MCP_AUTH_TOKEN}" */
+  upstream_auth_token: z.string().optional(),
   policy: policySchema,
 });
 
@@ -52,16 +55,38 @@ export const daemonSchema = z.object({
   }).default({}),
 });
 
+export const claimsToRolesSchema = z.object({
+  claim_name: z.string().default('roles'),
+  mapping: z.record(z.string(), z.array(z.string())).default({}),
+}).default({});
+
+export const oauthSchema = z.object({
+  issuer: z.string().url(),
+  jwks_uri: z.string().url().optional(),
+  audience: z.string().optional(),
+  client_id: z.string(),
+  client_secret: z.string().optional(),
+  scopes: z.array(z.string()).default(['openid', 'profile']),
+  claims_to_roles: claimsToRolesSchema,
+  clock_tolerance_seconds: z.number().min(0).max(300).default(30),
+});
+
 export const authSchema = z.object({
-  mode: z.enum(['os', 'api_key']).default('os'),
+  mode: z.enum(['os', 'api_key', 'oauth']).default('os'),
   api_keys: z.record(z.string(), z.object({
     roles: z.array(z.string()).default(['default']),
   })).default({}),
+  oauth: oauthSchema.optional(),
   roles: z.record(z.string(), z.object({
     permissions: permissionsSchema,
     rate_limit: rateLimitSchema,
   })).default({}),
-}).default({});
+}).default({}).refine((auth) => {
+  if (auth.mode === 'oauth' && !auth.oauth) {
+    return false;
+  }
+  return true;
+}, { message: 'auth.oauth config required when mode is "oauth"' });
 
 export const interceptorConfigSchema = z.object({
   timeout: z.number().min(1).default(10),
@@ -136,3 +161,5 @@ export type PIIConfig = z.infer<typeof piiSchema>;
 export type SamplingConfig = z.infer<typeof policySchema>['sampling'];
 export type AuditConfig = z.infer<typeof auditSchema>;
 export type ExtendsConfig = z.infer<typeof extendsSchema>;
+export type OAuthConfig = z.infer<typeof oauthSchema>;
+export type ClaimsToRolesConfig = z.infer<typeof claimsToRolesSchema>;

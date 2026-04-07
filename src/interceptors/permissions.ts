@@ -1,5 +1,6 @@
 import type { McpGuardConfig } from '../config/schema.js';
 import type { Interceptor, InterceptorContext, InterceptorDecision } from './types.js';
+import { resolveEffectivePermissions } from './effective-policy.js';
 
 // Max input length for regex/glob matching to prevent ReDoS
 const MAX_MATCH_INPUT_LENGTH = 1024;
@@ -33,7 +34,12 @@ export function createPermissionInterceptor(config: McpGuardConfig): Interceptor
         return { action: 'PASS' };
       }
 
-      const permissions = serverConfig.policy.permissions;
+      // Merge server-level + role-level permissions (floor-based)
+      const permissions = resolveEffectivePermissions(
+        serverConfig.policy.permissions,
+        ctx.identity,
+        config,
+      );
 
       if (ctx.message.method === 'tools/call') {
         const toolName = ctx.message.params?.['name'] as string | undefined;
@@ -49,12 +55,15 @@ export function createPermissionInterceptor(config: McpGuardConfig): Interceptor
           };
         }
 
-        if (permissions.allowed_tools && !matchesAny(toolName, permissions.allowed_tools)) {
-          return {
-            action: 'BLOCK',
-            reason: `Tool '${toolName}' is not in allowed list`,
-            code: 'PERMISSION_DENIED',
-          };
+        // Tool must match ALL allow-lists (semantic intersection)
+        for (const allowList of permissions.allowed_tools_lists) {
+          if (!matchesAny(toolName, allowList)) {
+            return {
+              action: 'BLOCK',
+              reason: `Tool '${toolName}' is not in allowed list`,
+              code: 'PERMISSION_DENIED',
+            };
+          }
         }
 
         return { action: 'PASS' };
@@ -74,12 +83,15 @@ export function createPermissionInterceptor(config: McpGuardConfig): Interceptor
           };
         }
 
-        if (permissions.allowed_resources && !matchesAny(uri, permissions.allowed_resources)) {
-          return {
-            action: 'BLOCK',
-            reason: `Resource '${uri}' is not in allowed list`,
-            code: 'PERMISSION_DENIED',
-          };
+        // Resource must match ALL allow-lists (semantic intersection)
+        for (const allowList of permissions.allowed_resources_lists) {
+          if (!matchesAny(uri, allowList)) {
+            return {
+              action: 'BLOCK',
+              reason: `Resource '${uri}' is not in allowed list`,
+              code: 'PERMISSION_DENIED',
+            };
+          }
         }
 
         return { action: 'PASS' };

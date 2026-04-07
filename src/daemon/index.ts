@@ -143,13 +143,16 @@ export async function startDaemon(config: McpGuardConfig, configPath?: string): 
             const pipelineResult = await currentPipeline.execute(ctx);
             const latencyMs = Date.now() - startTime;
 
+            // Use pipeline-resolved identity (may be OAuth identity instead of OS identity)
+            const effectiveIdentity = pipelineResult.resolvedIdentity ?? identity;
+
             // Audit tap records everything (including blocks)
             auditTap.record({
               bridgeId: conn.id,
               server: msg.server,
               method,
               direction: 'request',
-              identity,
+              identity: effectiveIdentity,
               toolOrResource: extractToolOrResource(msg.data),
               pipelineResult,
               latencyMs,
@@ -188,7 +191,7 @@ export async function startDaemon(config: McpGuardConfig, configPath?: string): 
               const responseCtx: InterceptorContext = {
                 message: { method, params: responseContent as Record<string, unknown> },
                 server: msg.server,
-                identity,
+                identity: effectiveIdentity,
                 direction: 'response',
                 metadata: { bridgeId: conn.id, timestamp: Date.now() },
               };
@@ -200,7 +203,7 @@ export async function startDaemon(config: McpGuardConfig, configPath?: string): 
                 server: msg.server,
                 method,
                 direction: 'response',
-                identity,
+                identity: effectiveIdentity,
                 toolOrResource: extractToolOrResource(msg.data),
                 pipelineResult: responseResult,
                 latencyMs: Date.now() - startTime,
@@ -248,7 +251,7 @@ export async function startDaemon(config: McpGuardConfig, configPath?: string): 
               const result = response.result as { tools?: Array<{ name: string }> };
               const serverConfig = currentConfig.servers[msg.server];
               if (result.tools && serverConfig) {
-                result.tools = filterToolsList(result.tools, serverConfig, identity, currentConfig);
+                result.tools = filterToolsList(result.tools, serverConfig, effectiveIdentity, currentConfig);
               }
             }
 
@@ -256,7 +259,7 @@ export async function startDaemon(config: McpGuardConfig, configPath?: string): 
               const result = response.result as { resources?: Array<{ uri: string }> };
               const serverConfig = currentConfig.servers[msg.server];
               if (result.resources && serverConfig) {
-                result.resources = filterResourcesList(result.resources, serverConfig, identity, currentConfig);
+                result.resources = filterResourcesList(result.resources, serverConfig, effectiveIdentity, currentConfig);
               }
             }
 

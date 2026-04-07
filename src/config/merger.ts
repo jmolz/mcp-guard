@@ -59,6 +59,7 @@ function mergeServers(
       env: baseServer.env,
       url: baseServer.url,
       transport: baseServer.transport,
+      upstream_auth_token: baseServer.upstream_auth_token,
       policy: mergePolicy(baseServer.policy, personalServer.policy),
     };
   }

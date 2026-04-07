@@ -248,6 +248,12 @@ When working on specific areas, read the corresponding reference:
 - **Custom interceptors are sandboxed**: They can only modify `params`/`content`. Mutations to tool names, methods, or resource URIs are rejected by the pipeline runner.
 - **Config merge is floor-based**: Personal configs can restrict but never relax base policies. This is enforced by the merger, not by convention.
 
+### Evaluation & Review Process
+
+- **Never skip adversarial review steps**: When a plan contract specifies Codex adversarial review (Tier 2+), it MUST be attempted. If the tooling fails or is not configured, report the error to the user — do not silently skip it or decide on your own that it's unavailable.
+- **Never unilaterally skip or downgrade any evaluation step**: All steps specified in a plan contract (Tier levels, Codex review, Claude evaluator passes) are mandatory. If any step cannot be completed for technical reasons, report the blocker and ask the user how to proceed.
+- **Evaluation decisions belong to the user**: The agent does not have authority to decide that a review step is unnecessary, that a threshold can be lowered, or that a failing criterion can be accepted. Present findings and let the user decide.
+
 ### Code Quality
 
 - **No `any` without justification**: If truly unavoidable, add `// SAFETY: <reason>` comment.

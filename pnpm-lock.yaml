@@ -17,12 +17,18 @@ importers:
       commander:
         specifier: ^13.1.0
         version: 13.1.0
+      jose:
+        specifier: ^6.2.2
+        version: 6.2.2
       js-yaml:
         specifier: ^4.1.0
         version: 4.1.1
       koffi:
         specifier: ^2.9.3
         version: 2.15.5
+      oauth4webapi:
+        specifier: ^3.8.5
+        version: 3.8.5
       zod:
         specifier: ^3.24.4
         version: 3.25.76
@@ -1143,6 +1149,9 @@ packages:
   node-abi@3.89.0:
     resolution: {integrity: sha512-6u9UwL0HlAl21+agMN3YAMXcKByMqwGx+pq+P76vii5f7hTPtKDp08/H9py6DY+cfDw7kQNTGEj/rly3IgbNQA==}
     engines: {node: '>=10'}
+
+  oauth4webapi@3.8.5:
+    resolution: {integrity: sha512-A8jmyUckVhRJj5lspguklcl90Ydqk61H3dcU0oLhH3Yv13KpAliKTt5hknpGGPZSSfOwGyraNEFmofDYH+1kSg==}
 
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
@@ -2641,6 +2650,8 @@ snapshots:
   node-abi@3.89.0:
     dependencies:
       semver: 7.7.4
+
+  oauth4webapi@3.8.5: {}
 
   object-assign@4.1.1: {}
 

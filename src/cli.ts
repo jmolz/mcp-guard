@@ -9,6 +9,8 @@ import { openDatabase, deriveDbEncryptionKey } from './storage/sqlite.js';
 import { queryAuditLogs, formatAuditRow } from './audit/query.js';
 import { readDaemonKey } from './identity/daemon-key.js';
 import type { HealthResponse } from './dashboard/health.js';
+import { executeOAuthFlow } from './identity/oauth-flow.js';
+import { createTokenStore } from './identity/token-store.js';
 
 const program = new Command()
   .name('mcp-guard')
@@ -105,6 +107,7 @@ program
       await startBridge(opts.server, opts.config, {
         socketPath: config.daemon.socket_path,
         keyPath: join(config.daemon.home, 'daemon.key'),
+        home: config.daemon.home,
       });
     } catch (err) {
       console.error(`Bridge failed: ${err}`);
@@ -264,5 +267,94 @@ program
       }
     },
   );
+
+const authCmd = program
+  .command('auth')
+  .description('Manage OAuth authentication');
+
+authCmd
+  .command('login')
+  .description('Authenticate with the configured OAuth provider')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (opts: { config?: string }) => {
+    try {
+      const config = await loadConfig(opts.config);
+      if (config.auth.mode !== 'oauth' || !config.auth.oauth) {
+        console.error('OAuth is not configured (auth.mode must be "oauth")');
+        process.exit(1);
+      }
+      const result = await executeOAuthFlow({
+        issuer: config.auth.oauth.issuer,
+        clientId: config.auth.oauth.client_id,
+        clientSecret: config.auth.oauth.client_secret,
+        scopes: config.auth.oauth.scopes,
+      });
+      const store = createTokenStore(config.daemon.home);
+      await store.save('default', {
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
+        id_token: result.id_token,
+        expires_at: result.expires_at,
+        scope: result.scope,
+      });
+      console.log('Authentication successful — token stored');
+    } catch (err) {
+      console.error(`Authentication failed: ${err}`);
+      process.exit(1);
+    }
+  });
+
+authCmd
+  .command('status')
+  .description('Show current OAuth token status')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (opts: { config?: string }) => {
+    try {
+      const config = await loadConfig(opts.config);
+      const store = createTokenStore(config.daemon.home);
+      const token = await store.load('default');
+      if (!token) {
+        console.log('Not authenticated — run `mcp-guard auth login`');
+        return;
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const expired = token.expires_at < now;
+      const remaining = token.expires_at - now;
+      console.log(`Status: ${expired ? 'EXPIRED' : 'Valid'}`);
+      if (!expired) {
+        console.log(`Expires in: ${Math.floor(remaining / 60)} minutes`);
+      }
+      console.log(`Scope: ${token.scope}`);
+      // Decode JWT payload to show subject (without verifying — just for display)
+      try {
+        const parts = token.access_token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+          console.log(`Subject: ${payload.sub ?? 'unknown'}`);
+        }
+      } catch {
+        // Opaque token — no subject to display
+      }
+    } catch (err) {
+      console.error(`Failed to check status: ${err}`);
+      process.exit(1);
+    }
+  });
+
+authCmd
+  .command('logout')
+  .description('Remove stored OAuth tokens')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (opts: { config?: string }) => {
+    try {
+      const config = await loadConfig(opts.config);
+      const store = createTokenStore(config.daemon.home);
+      await store.remove('default');
+      console.log('Logged out — tokens removed');
+    } catch (err) {
+      console.error(`Failed to logout: ${err}`);
+      process.exit(1);
+    }
+  });
 
 program.parse();
