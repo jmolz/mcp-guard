@@ -128,7 +128,7 @@ export async function runLegitimateTraffic(
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*[\\/]/, ''))) {
   const quick = process.argv.includes('--quick');
-  runLegitimateTraffic('benchmarks/configs/security-benchmark.yaml', { quick })
+  runLegitimateTraffic('benchmarks/configs/legitimate-benchmark.yaml', { quick })
     .then((result) => {
       console.log(JSON.stringify(result, null, 2));
     })

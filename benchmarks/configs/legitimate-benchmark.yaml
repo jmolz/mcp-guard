@@ -1,0 +1,170 @@
+# Legitimate traffic benchmark config — same policies as security but with
+# rate limits set very high to avoid false positives from rate limiting.
+# The legitimate suite measures PII detection and permission false positives,
+# NOT rate limit behavior.
+
+servers:
+  filesystem:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/filesystem.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools:
+          - delete_file
+        denied_resources:
+          - "file://../../*"
+          - "file://../*"
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: false
+
+  database:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/database.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools:
+          - drop_table
+          - execute_sql
+        denied_resources: []
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: false
+
+  api-client:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/api-client.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools: []
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: false
+
+  git-ops:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/git-ops.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools:
+          - git_force_push
+          - git_delete_branch
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: false
+
+  shell:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/shell.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools:
+          - run_command
+          - run_script
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: false
+
+  communication:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/communication.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools: []
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: false
+
+  cloud-infra:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/cloud-infra.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools:
+          - destroy_resource
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: false
+
+  sampling-server:
+    transport: stdio
+    command: npx
+    args: ["tsx", "benchmarks/mock-servers/sampling-server.ts"]
+    policy:
+      permissions:
+        allowed_tools: ["*"]
+        denied_tools: []
+      rate_limit:
+        requests_per_minute: 100000
+        requests_per_hour: 1000000
+      sampling:
+        enabled: true
+        max_tokens: 4096
+        rate_limit: 10
+        audit: verbose
+
+daemon:
+  socket_path: "__SOCKET_PATH__"
+  home: "__HOME__"
+  shutdown_timeout: 10
+  log_level: warn
+  dashboard_port: 0
+
+pii:
+  enabled: true
+  confidence_threshold: 0.8
+  actions:
+    email:
+      request: redact
+      response: warn
+    phone:
+      request: redact
+      response: warn
+    ssn:
+      request: block
+      response: redact
+    credit_card:
+      request: block
+      response: redact
+    aws_key:
+      request: redact
+      response: redact
+    github_token:
+      request: redact
+      response: redact
+
+audit:
+  enabled: true
+  stdout: false
+  retention_days: 1
+
+interceptors:
+  timeout: 10

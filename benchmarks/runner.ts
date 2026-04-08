@@ -130,7 +130,7 @@ export async function runBenchmarks(options: { quick?: boolean; suite?: string; 
 
   if (!options.suite || options.suite === 'legitimate') {
     console.log('\n--- Legitimate Traffic ---');
-    legitimate = await runLegitimateTraffic('benchmarks/configs/security-benchmark.yaml', genOpts);
+    legitimate = await runLegitimateTraffic('benchmarks/configs/legitimate-benchmark.yaml', genOpts);
     printLegitSummary(legitimate);
   }
 

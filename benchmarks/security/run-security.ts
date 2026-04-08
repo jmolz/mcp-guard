@@ -223,13 +223,32 @@ export async function runSecurityBenchmark(
       });
     }
 
-    // Run non-rate-limit categories (after burst groups to avoid state contamination)
+    // Open DB for rate limit resets between categories.
+    // Each non-rate-limit category tests a specific interceptor (permissions, PII, etc.).
+    // Rate limiting is tested separately via burst groups. To prevent rate limit state
+    // from contaminating other categories' measurements, we reset between each category.
+    const benchDb = openDatabase({ path: join(tempDir, 'mcp-guard.db') });
+    const resetRateLimits = benchDb.prepare('DELETE FROM rate_limits');
+
+    // Run non-rate-limit categories (each starts with fresh rate limit state).
+    // Rate limit behavior is tested exclusively by burst groups above. For all other
+    // categories, rate limits are noise — reset them periodically so only the targeted
+    // interceptor (permissions, PII, auth, etc.) determines the outcome.
+    const RATE_LIMIT_RESET_INTERVAL = 50;
+
     for (const [category, categoryScenarios] of byCategory) {
+      // Fresh rate limit state at category start
+      resetRateLimits.run();
+
       console.log(`  Running ${category}: ${categoryScenarios.length} scenarios...`);
       const scenarioResults: ScenarioResult[] = [];
 
-      for (const scenario of categoryScenarios) {
-        const result = await runScenario(socket, scenario);
+      for (let i = 0; i < categoryScenarios.length; i++) {
+        // Reset rate limits periodically so non-rate-limit categories aren't affected
+        if (i > 0 && i % RATE_LIMIT_RESET_INTERVAL === 0) {
+          resetRateLimits.run();
+        }
+        const result = await runScenario(socket, categoryScenarios[i]);
         scenarioResults.push(result);
       }
 
@@ -243,6 +262,8 @@ export async function runSecurityBenchmark(
         scenarios: scenarioResults,
       });
     }
+
+    benchDb.close();
 
     // Audit log integrity check — fail-closed: if we can't verify, it's a FAIL
     let auditIntegrity: AuditIntegrityResult;
