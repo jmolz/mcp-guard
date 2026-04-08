@@ -249,6 +249,7 @@ When working on specific areas, read the corresponding reference:
 | Testing strategy | `.claude/rules/testing.md` | Writing tests for any module |
 | Benchmarks | `.claude/rules/benchmarks.md` | Adding scenarios, mock servers, running benchmarks |
 | CI/CD workflows | `.claude/rules/ci.md` | GitHub Actions, package.json CI fields, cross-platform |
+| Publishing & releases | `.claude/rules/publishing.md` | npm/Docker publish, release prerequisites, pre-publish checklist |
 | Full PRD | `.claude/PRD.md` | Feature specs, implementation phases |
 | Architecture deep-dive | `.claude/docs/architecture.md` | System design reference |
 
