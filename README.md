@@ -6,6 +6,8 @@
 
 Security proxy daemon for MCP servers — adds authentication, rate limiting, PII detection, permission scoping, and audit logging without modifying upstream servers.
 
+![MCP-Guard Architecture](docs/assets/architecture.svg)
+
 ## What is this?
 
 MCP (Model Context Protocol) servers give AI coding tools access to files, databases, APIs, and more. But they have no built-in authentication, no audit trail, and no way to restrict which tools an agent can call.
@@ -88,6 +90,40 @@ Client -> Bridge (stdio) -> Daemon (Unix socket) -> Upstream MCP Server
 MCP-Guard uses **terminate, inspect, re-originate** — it fully owns both the client and upstream connections. The interceptor pipeline is fail-closed: any error blocks the request. The audit tap is structural (wired outside the pipeline) and cannot be bypassed.
 
 Config merge uses **floor-based semantics**: personal configs can restrict but never relax base policies. `allowed_tools` are intersected, `denied_tools` are unioned, rate limits take the stricter value.
+
+## Why This Matters
+
+### Without MCP-Guard
+
+```
+Agent asks to read /home/user/.env via filesystem MCP server
+  → Server returns: AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+  → API key is now in the agent's context window
+  → No authentication. No audit trail. No one knows it happened.
+```
+
+### With MCP-Guard
+
+```
+Agent asks to read /home/user/.env via filesystem MCP server
+  → MCP-Guard intercepts the response
+  → PII detector matches AWS key pattern → BLOCK
+  → Audit log records: blocked response, server=filesystem, pii_type=aws_key
+  → Agent receives: "Request blocked by security policy"
+```
+
+## Scope
+
+MCP-Guard operates at the **MCP protocol layer** — it inspects JSON-RPC messages between client and server. This is a deliberate architectural boundary.
+
+**What MCP-Guard does not address:**
+
+- **LLM prompt injection** — MCP-Guard does not analyze agent intent. Detecting whether an agent was tricked into making a malicious call requires agent-layer defenses.
+- **Model jailbreaking or alignment bypasses** — MCP-Guard does not operate at the model layer. LLM safety is a model-layer concern, not a transport security concern.
+- **Network-layer attacks** (MITM, DNS rebinding, TLS stripping) — MCP-Guard does not replace network security. Use standard network security controls.
+- **Malicious MCP server implementations** — the proxy limits exposure via permissions and PII scanning, but cannot fix a compromised server.
+
+MCP-Guard is the protocol-layer firewall. It complements agent-layer and network-layer defenses — it doesn't replace them.
 
 ## Benchmark Results
 

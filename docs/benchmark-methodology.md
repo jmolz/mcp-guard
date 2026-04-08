@@ -93,3 +93,15 @@ This means: we are 95% confident that the true false positive rate is below 0.03
 - **No ML-based detection yet.** A learned detector could catch patterns that regexes miss, at the cost of latency and false positive rate. This is planned.
 - **Tested against our own generated suite, not an independent corpus.** See the self-testing transparency section above for mitigations.
 - **Does not address network-layer attacks** (MITM, DNS rebinding) or **malicious server detection** — these require defenses at different layers.
+
+## Cross-Validation
+
+We investigated cross-validating MCP-Guard against GenTelLab's MCP-AttackBench (the largest published MCP security dataset at 70K+ samples). The dataset is incompatible with protocol-layer evaluation:
+
+- **96.77% of samples are jailbreak/prompt injection strings** — flat natural language text designed for agent-layer text classification, not structured JSON-RPC messages.
+- **Threat model mismatch** — MCP-AttackBench evaluates whether a model can be tricked into making malicious calls. MCP-Guard evaluates whether a malicious call (regardless of origin) gets blocked at the protocol layer. These are complementary defenses at different layers, not competing approaches to the same problem.
+- **No published JSON-RPC samples** — the dataset does not include structured MCP tool_call payloads, permission probes, or PII exfiltration attempts in protocol message format.
+
+MCP-Guard's benchmark suite remains self-generated. We mitigate this with: open-source reproducibility (`pnpm benchmark`), programmatic generation with documented methodology, per-category transparency (showing 92.4%–100% range rather than a single aggregate), and explicit limitations disclosure.
+
+We welcome external benchmark suites targeting protocol-layer MCP security. If one emerges, we will cross-validate and publish results.
