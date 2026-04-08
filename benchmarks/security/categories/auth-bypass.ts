@@ -236,20 +236,14 @@ export class AuthBypassGenerator implements ScenarioGenerator {
     // ---------------------------------------------------------------
     for (const injection of INJECTION_TOOL_NAMES) {
       for (const server of MOCK_SERVERS) {
-        // Injection-style names: empty/whitespace → BLOCK (malformed).
-        // Non-empty: may BLOCK (upstream error) or PASS depending on how the
-        // upstream handles the invalid name. Accept either outcome.
-        // Using PASS as default; known-BLOCK patterns are listed separately.
-        const isBlocked = injection.value.trim() === ''
-          || injection.value.includes('/')
-          || injection.value.includes('|')
-          || injection.value.includes(';')
-          || injection.value.includes('`')
-          || injection.value.includes('$')
-          || injection.value.includes("'")
-          || injection.value === '.'
-          || injection.value === '..'
-          || injection.value === '*';
+        // The permissions interceptor blocks tool names that:
+        // 1. Are falsy (empty string) → "missing required tool name"
+        // 2. Don't match the allowed_tools glob pattern
+        // With allowed_tools: ['*'], the glob compiles to [^/]* — matches
+        // any string without forward slashes. So only empty names and
+        // names containing '/' are blocked.
+        const isBlocked = injection.value === ''
+          || injection.value.includes('/');
         scenarios.push(
           buildToolCallScenario({
             id: nextId(),

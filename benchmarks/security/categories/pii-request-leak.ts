@@ -73,14 +73,41 @@ const PII_SAMPLES: Record<string, string[]> = {
 /** PII types whose request action is 'block' → expectedDecision BLOCK */
 const BLOCK_TYPES = new Set(['ssn', 'credit_card']);
 
-/** PII types whose request action is 'redact' → expectedDecision PASS
- *  Request-side redaction is transparent: the client sees a normal response.
- *  Redaction is verified post-run via the audit log integrity check. */
+/** PII types whose request action is 'redact'.
+ *  Request-side redaction replaces PII with [REDACTED:type] before forwarding.
+ *  If the upstream tool echoes the argument, the response contains [REDACTED]
+ *  markers → inferDecision returns MODIFY. If the upstream doesn't echo (e.g.,
+ *  Zod validation error), the response is PASS. */
 const REDACT_TYPES = new Set(['email', 'phone', 'aws_key', 'github_token']);
 
-function expectedDecisionForType(piiType: string): 'BLOCK' | 'PASS' {
+/**
+ * Tools whose argument names match the mock server's Zod schema AND whose
+ * handler echoes the argument value in the response. When PII is redacted
+ * on the request side, these tools echo [REDACTED:type] → MODIFY.
+ *
+ * Tools not in this set fail Zod validation (arg name mismatch) or don't
+ * echo, so the client sees an error → PASS.
+ */
+const ECHOING_TOOLS = new Set([
+  'filesystem:read_file:path',
+  'filesystem:list_directory:path',
+  'database:query_sql:query',
+  'api-client:http_get:url',
+]);
+
+function expectedDecisionForType(
+  piiType: string,
+  server: string,
+  tool: string,
+  argName: string,
+): 'BLOCK' | 'PASS' | 'MODIFY' {
   if (BLOCK_TYPES.has(piiType)) return 'BLOCK';
-  if (REDACT_TYPES.has(piiType)) return 'PASS';
+  if (REDACT_TYPES.has(piiType)) {
+    // Redact-action PII is replaced with [REDACTED:type] before forwarding.
+    // If the tool echoes the arg, the response contains the marker → MODIFY.
+    const key = `${server}:${tool}:${argName}`;
+    return ECHOING_TOOLS.has(key) ? 'MODIFY' : 'PASS';
+  }
   // Fail-closed: unknown types block
   return 'BLOCK';
 }
@@ -175,13 +202,13 @@ export class PiiRequestLeakGenerator implements ScenarioGenerator {
 
     for (const piiType of piiTypes) {
       const samples = PII_SAMPLES[piiType];
-      const decision = expectedDecisionForType(piiType);
-
       for (const server of MOCK_SERVERS) {
         const tools = SERVER_TOOLS[server];
         if (!tools) continue;
 
         for (const { tool, argName } of tools) {
+          const decision = expectedDecisionForType(piiType, server, tool, argName);
+
           for (const piiValue of samples) {
             for (const strategy of EMBED_STRATEGIES) {
               const { args, label } = embedPii(argName, piiValue, strategy);

@@ -36,16 +36,32 @@ import {
 /**
  * Maps PII type to expected decision from the CLIENT's perspective when PII IS detected.
  * - 'block' action → BLOCK (client sees error)
- * - 'redact' action → PASS (transparent modification; client sees normal response)
+ * - 'redact' action → PASS or MODIFY depending on whether the mock server echoes
+ *   the redacted value. If the tool echoes [REDACTED:type], inferDecision returns MODIFY.
  */
-const REQUEST_ACTIONS: Record<string, 'BLOCK' | 'PASS'> = {
-  email: 'PASS',
-  phone: 'PASS',
-  ssn: 'BLOCK',
-  credit_card: 'BLOCK',
-  aws_key: 'PASS',
-  github_token: 'PASS',
-};
+const BLOCK_PII_TYPES = new Set(['ssn', 'credit_card']);
+const REDACT_PII_TYPES = new Set(['email', 'phone', 'aws_key', 'github_token']);
+
+/**
+ * (server, tool, argKey) combinations where the mock server echoes the argument
+ * value in its response. When PII is redacted, these echo [REDACTED:type].
+ */
+const ECHOING_TOOLS = new Set([
+  'filesystem:read_file:path',
+  'database:describe_table:name',
+  'api-client:http_get:url',
+]);
+
+function detectedDecision(piiType: string, server: string): 'BLOCK' | 'PASS' | 'MODIFY' {
+  if (BLOCK_PII_TYPES.has(piiType)) return 'BLOCK';
+  if (REDACT_PII_TYPES.has(piiType)) {
+    const tool = SERVER_TOOLS[server] ?? 'echo';
+    const argKey = argKeyForServer(server);
+    const key = `${server}:${tool}:${argKey}`;
+    return ECHOING_TOOLS.has(key) ? 'MODIFY' : 'PASS';
+  }
+  return 'BLOCK';
+}
 
 // ---------------------------------------------------------------------------
 // Canonical PII values that WOULD be detected by regex
@@ -232,18 +248,20 @@ const EVASION_TECHNIQUES: EvasionTechnique[] = [
 
   // ---------------------------------------------------------------
   // 7. Long string offset — PII at position N in a large string
-  //    Scanner has MAX_CONTENT_LENGTH of 64KB
-  //    Within 64KB -> detected; beyond 64KB -> evades
+  //    Scanner has MAX_CONTENT_LENGTH of 64KB.
+  //    Padding with word characters ('x') eliminates the \b word boundary
+  //    that all PII regexes require, so detection fails. This is a genuine
+  //    evasion technique, not a scanner bug.
   // ---------------------------------------------------------------
   {
     name: 'offset-10k',
     transform: (_type, val) => 'x'.repeat(10000) + val,
-    detected: true,
+    detected: false, // Word-char padding removes \b boundary → evades
   },
   {
     name: 'offset-50k',
     transform: (_type, val) => 'x'.repeat(50000) + val,
-    detected: true,
+    detected: false, // Word-char padding removes \b boundary → evades
   },
   {
     name: 'offset-beyond-64k',
@@ -312,14 +330,10 @@ export class PiiEvasionGenerator implements ScenarioGenerator {
           // If the transform doesn't change the value (e.g., letter-only transform on digit PII),
           // the original PII is still present and will be detected.
           const valueChanged = evaded !== canonical;
-          let expectedDecision: 'PASS' | 'BLOCK';
-          if (technique.detected) {
-            // Technique is known to be detected by regex
-            expectedDecision = REQUEST_ACTIONS[piiType];
-          } else if (!valueChanged) {
-            // Transform had no effect (e.g., Cyrillic 'e' replacement on SSN which has no letters)
-            // → original PII is still there → detected
-            expectedDecision = REQUEST_ACTIONS[piiType];
+          let expectedDecision: 'PASS' | 'BLOCK' | 'MODIFY';
+          if (technique.detected || !valueChanged) {
+            // PII is detected by regex → action depends on PII type and server echo behavior
+            expectedDecision = detectedDecision(piiType, server);
           } else {
             expectedDecision = 'PASS'; // Evasion successful — known gap
           }
@@ -333,7 +347,7 @@ export class PiiEvasionGenerator implements ScenarioGenerator {
               toolName: tool,
               args: { [argKey]: evaded },
               expectedDecision,
-              expectedInterceptor: (technique.detected || !valueChanged) ? 'pii-detect' : undefined,
+              expectedInterceptor: (technique.detected || !valueChanged) && expectedDecision !== 'PASS' ? 'pii-detect' : undefined,
             }),
           );
           index++;
