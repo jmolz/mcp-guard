@@ -1,5 +1,5 @@
 {
-  "name": "mcpguard",
+  "name": "@jacobmolz/mcpguard",
   "version": "0.1.0",
   "description": "Security proxy daemon for MCP servers — adds auth, rate limiting, PII detection, and audit logging",
   "author": "Jacob Molz",
