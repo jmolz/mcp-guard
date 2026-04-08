@@ -214,6 +214,293 @@ describe('Legitimate traffic generator', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Expected decision spot-checks — 5 per category, manually verified ground truth.
+// These prevent regressions in expectedDecision logic (the root cause of #13).
+// ---------------------------------------------------------------------------
+
+/**
+ * Find a scenario by description substring. Throws if not found (fail-fast).
+ */
+function findScenario(scenarios: BenchmarkScenario[], descSubstring: string): BenchmarkScenario {
+  const match = scenarios.find((s) => s.description.includes(descSubstring));
+  if (!match) throw new Error(`No scenario matching "${descSubstring}"`);
+  return match;
+}
+
+describe('Expected decision spot-checks', () => {
+  // ---- permission_bypass ----
+  describe('permission_bypass decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new PermissionBypassGenerator().generate(); });
+
+    it('BLOCK: denied tool on its owning server', () => {
+      const s = findScenario(scenarios, '"delete_file" called on owning server "filesystem"');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('BLOCK: denied tool on server that denies it (cross-server)', () => {
+      const s = findScenario(scenarios, '"drop_table" attempted on server "database"');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: denied tool on server that does NOT deny it', () => {
+      const s = findScenario(scenarios, '"delete_file" attempted on server "api-client"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('PASS: case variant (UPPER) of denied tool', () => {
+      const s = findScenario(scenarios, 'Case bypass "UPPER" for "delete_file"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('PASS: prefix trick on denied tool', () => {
+      const s = findScenario(scenarios, 'Prefix trick "admin-colon" for "delete_file"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+  });
+
+  // ---- resource_traversal ----
+  describe('resource_traversal decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new ResourceTraversalGenerator().generate(); });
+
+    it('BLOCK: traversal URI matching denied resource on filesystem', () => {
+      // filesystem denies file://../../* and file://../*
+      const s = scenarios.find((s) =>
+        s.server === 'filesystem' && s.expectedDecision === 'BLOCK',
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: traversal URI on server with no denied resources', () => {
+      const s = scenarios.find((s) =>
+        s.server === 'database' && s.description.includes('traversal'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('PASS');
+    });
+    it('has both BLOCK and PASS scenarios', () => {
+      const blocks = scenarios.filter((s) => s.expectedDecision === 'BLOCK').length;
+      const passes = scenarios.filter((s) => s.expectedDecision === 'PASS').length;
+      expect(blocks).toBeGreaterThan(0);
+      expect(passes).toBeGreaterThan(0);
+    });
+  });
+
+  // ---- pii_request_leak ----
+  describe('pii_request_leak decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new PiiRequestLeakGenerator().generate(); });
+
+    it('BLOCK: SSN in request args', () => {
+      const s = findScenario(scenarios, 'ssn PII (direct value)');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('BLOCK: credit_card in request args', () => {
+      const s = findScenario(scenarios, 'credit_card PII (direct value)');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('MODIFY: email on echoing tool (filesystem:read_file:path)', () => {
+      const s = scenarios.find((s) =>
+        s.description.includes('email PII (direct value) in read_file on filesystem'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('MODIFY');
+    });
+    it('PASS: email on non-echoing tool', () => {
+      const s = scenarios.find((s) =>
+        s.description.includes('email PII (direct value) in git_clone on git-ops'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('PASS');
+    });
+    it('PASS: phone on non-echoing tool', () => {
+      const s = scenarios.find((s) =>
+        s.description.includes('phone PII (direct value) in install_package on shell'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('PASS');
+    });
+  });
+
+  // ---- pii_response_leak ----
+  describe('pii_response_leak decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new PiiResponseLeakGenerator().generate(); });
+
+    it('all scenarios expect MODIFY (response PII always redacted)', () => {
+      for (const s of scenarios) {
+        expect(s.expectedDecision, s.description).toBe('MODIFY');
+      }
+    });
+  });
+
+  // ---- auth_bypass ----
+  describe('auth_bypass decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new AuthBypassGenerator().generate(); });
+
+    it('PASS: valid tool with invalid API key in OS mode', () => {
+      const s = findScenario(scenarios, 'invalid _api_key "empty-string"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('PASS: valid tool with invalid bearer token in OS mode', () => {
+      const s = findScenario(scenarios, 'invalid _bearer_token "expired-looking"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('BLOCK: tools/call without name (malformed)', () => {
+      const s = findScenario(scenarios, 'tools/call without name');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('BLOCK: injection tool name with / (path-traversal)', () => {
+      const s = findScenario(scenarios, 'Injection tool name "path-traversal"');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: injection tool name without / (__proto__)', () => {
+      const s = findScenario(scenarios, 'Injection tool name "prototype-pollution"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+  });
+
+  // ---- sampling_injection ----
+  describe('sampling_injection decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new SamplingInjectionGenerator().generate(); });
+
+    it('BLOCK: sampling request on non-sampling server', () => {
+      const s = findScenario(scenarios, 'Blocked server: "short-hello" prompt on "filesystem"');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: sampling request on sampling-server', () => {
+      const s = findScenario(scenarios, 'Passing server: "short-hello" prompt on "sampling-server"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('majority are BLOCK (7/8 servers block sampling)', () => {
+      const blocks = scenarios.filter((s) => s.expectedDecision === 'BLOCK').length;
+      expect(blocks).toBeGreaterThan(scenarios.length * 0.5);
+    });
+  });
+
+  // ---- config_override ----
+  describe('config_override decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new ConfigOverrideGenerator().generate(); });
+
+    it('BLOCK: denied tool on owning server with override arg', () => {
+      const s = findScenario(scenarios, '"delete_file" on "filesystem" with override arg override:true');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: denied tool on server that does not deny it, with override arg', () => {
+      const s = findScenario(scenarios, '"delete_file" on "api-client" with override arg');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('PASS: prefixed denied tool name (admin:delete_file)', () => {
+      const s = findScenario(scenarios, 'Prefixed "admin:delete_file"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('BLOCK: denied tool on owning server with sudo arg', () => {
+      const s = findScenario(scenarios, '"drop_table" on "database" with override arg sudo:true');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: denied tool on non-denying server with admin arg', () => {
+      const s = findScenario(scenarios, '"run_command" on "filesystem" with override arg admin:true');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+  });
+
+  // ---- capability_probe ----
+  describe('capability_probe decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new CapabilityProbeGenerator().generate(); });
+
+    it('BLOCK: denied tool probed on owning server', () => {
+      const s = findScenario(scenarios, '"delete_file" probed on "filesystem"');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: denied tool probed on non-denying server', () => {
+      const s = findScenario(scenarios, '"delete_file" probed on "api-client"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('PASS: non-existent tool', () => {
+      const s = findScenario(scenarios, 'Non-existent tool "hack_system"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('PASS: near-miss tool name', () => {
+      const s = findScenario(scenarios, 'Near-miss tool "delete_files"');
+      expect(s.expectedDecision).toBe('PASS');
+    });
+    it('BLOCK: empty tool name edge case', () => {
+      const s = findScenario(scenarios, 'Edge case "empty"');
+      expect(s.expectedDecision).toBe('BLOCK');
+    });
+  });
+
+  // ---- pii_evasion ----
+  describe('pii_evasion decisions', () => {
+    let scenarios: BenchmarkScenario[];
+    beforeAll(() => { scenarios = new PiiEvasionGenerator().generate(); });
+
+    it('PASS: homoglyph Cyrillic-e on email (value changed, evades regex)', () => {
+      const s = scenarios.find((s) =>
+        s.description.includes('homoglyph-cyrillic-e email'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('PASS');
+    });
+    it('PASS: base64 encoded PII (evades regex)', () => {
+      const s = scenarios.find((s) =>
+        s.description.includes('base64-encoded email'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('PASS');
+    });
+    it('BLOCK: nested JSON with SSN (detected, block type)', () => {
+      const s = scenarios.find((s) =>
+        s.description.includes('nested-json-1-level ssn'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('BLOCK');
+    });
+    it('PASS: offset-10k padding (word boundary evasion)', () => {
+      const s = scenarios.find((s) =>
+        s.description.includes('offset-10k email'),
+      );
+      expect(s).toBeDefined();
+      expect(s!.expectedDecision).toBe('PASS');
+    });
+    it('detected technique on digit-only PII still detects (value unchanged)', () => {
+      // Cyrillic-e on SSN "123-45-6789" — no 'e' chars, value unchanged → detected
+      const s = scenarios.find((s) =>
+        s.description.includes('homoglyph-cyrillic-e ssn') && s.server === 'filesystem',
+      );
+      expect(s).toBeDefined();
+      // SSN is a block type, value unchanged → detected → BLOCK
+      expect(s!.expectedDecision).toBe('BLOCK');
+    });
+  });
+
+  // ---- rate_limit_evasion (burst groups) ----
+  describe('rate_limit_evasion decisions', () => {
+    let burstGroups: BurstGroup[];
+    beforeAll(() => { burstGroups = new RateLimitEvasionGenerator().generate(); });
+
+    it('burst groups have PASS requests before BLOCK requests', () => {
+      for (const group of burstGroups) {
+        let seenBlock = false;
+        for (const req of group.requests) {
+          if (req.expectedDecision === 'BLOCK') seenBlock = true;
+          if (seenBlock) {
+            expect(req.expectedDecision, `${group.description}`).toBe('BLOCK');
+          }
+        }
+      }
+    });
+    it('each burst group contains at least one BLOCK', () => {
+      for (const group of burstGroups) {
+        const hasBlock = group.requests.some((r) => r.expectedDecision === 'BLOCK');
+        expect(hasBlock, `${group.id} should have ≥1 BLOCK`).toBe(true);
+      }
+    });
+  });
+});
+
 describe('Quick mode', () => {
   it('all 10 categories produce ≥10 scenarios in quick mode', () => {
     const registry = new ScenarioGeneratorRegistry();
