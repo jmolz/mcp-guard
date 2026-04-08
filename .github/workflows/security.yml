@@ -12,12 +12,21 @@ permissions:
 jobs:
   codeql:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
-      - uses: github/codeql-action/autobuild@v3
+      - run: pnpm build
       - uses: github/codeql-action/analyze@v3
 
   dependency-audit:
@@ -30,4 +39,4 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm audit --production
+      - run: pnpm audit --production --audit-level=high
