@@ -514,7 +514,7 @@ Use the `npx -y` pattern in tests instead of devDeps if package sizes are too la
 **Action:** CREATE
 **Description:** Vulnerability disclosure policy:
 - Supported versions table (only latest minor)
-- Reporting process: email security@jmolz.dev (or GitHub Security Advisories)
+- Reporting process: email security@gmail.com (or GitHub Security Advisories)
 - Response timeline expectations (48h acknowledge, 7d assessment, 30d fix)
 - Scope: what's in/out of scope for reports
 - Credit policy for reporters
