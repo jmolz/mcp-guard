@@ -151,22 +151,31 @@ ${lines}
 </svg>`;
 }
 
-export function generateFalsePositiveCard(legit: LegitimateTrafficResult): string {
+export function generateFalsePositiveCard(legit: LegitimateTrafficResult, fpUpperBound95?: number): string {
   const width = 800;
   const height = 300;
-  const rate = (legit.falsePositiveRate * 100).toFixed(3);
   const pass = legit.falsePositiveRate < 0.001;
   const color = pass ? '#22c55e' : '#ef4444';
   const status = pass ? 'PASS' : 'FAIL';
 
+  // When FP is zero and CI is available, show "0 observed" with CI subtitle
+  const showCi = legit.falsePositives === 0 && fpUpperBound95 !== undefined;
+  const heroText = showCi ? '0 observed' : `${(legit.falsePositiveRate * 100).toFixed(3)}%`;
+  const ciLine = showCi
+    ? `\n  <text x="${width / 2}" y="178" text-anchor="middle" font-size="18" fill="#64748b">95% CI upper bound: ${(fpUpperBound95 * 100).toFixed(2)}%</text>`
+    : '';
+  const detailY = showCi ? 210 : 190;
+  const statusY = showCi ? 245 : 230;
+  const targetY = showCi ? 272 : 260;
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" aria-label="False Positive Rate">
-  <title>False Positive Rate: ${rate}%</title>
+  <title>False Positive Rate: ${heroText}</title>
   <style>text { font-family: system-ui, -apple-system, sans-serif; }</style>
   <rect x="0" y="0" width="${width}" height="${height}" fill="#f8fafc" rx="8"/>
   <text x="${width / 2}" y="60" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e293b">False Positive Rate</text>
-  <text x="${width / 2}" y="150" text-anchor="middle" font-size="64" font-weight="bold" fill="${color}">${rate}%</text>
-  <text x="${width / 2}" y="190" text-anchor="middle" font-size="16" fill="#64748b">${legit.falsePositives} / ${legit.total} requests incorrectly blocked</text>
-  <text x="${width / 2}" y="230" text-anchor="middle" font-size="20" font-weight="bold" fill="${color}">${status}</text>
-  <text x="${width / 2}" y="260" text-anchor="middle" font-size="12" fill="#94a3b8">Target: &lt;0.1%</text>
+  <text x="${width / 2}" y="150" text-anchor="middle" font-size="64" font-weight="bold" fill="${color}">${escapeXml(heroText)}</text>${ciLine}
+  <text x="${width / 2}" y="${detailY}" text-anchor="middle" font-size="16" fill="#64748b">${legit.falsePositives} / ${legit.total} requests incorrectly blocked</text>
+  <text x="${width / 2}" y="${statusY}" text-anchor="middle" font-size="20" font-weight="bold" fill="${color}">${status}</text>
+  <text x="${width / 2}" y="${targetY}" text-anchor="middle" font-size="12" fill="#94a3b8">Target: &lt;0.1%</text>
 </svg>`;
 }

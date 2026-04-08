@@ -6,7 +6,12 @@ import type {
   SecurityBenchmarkResult,
   PerformanceBenchmarkResult,
   BenchmarkSuiteResult,
+  LegitimateTrafficMetadata,
 } from '../types.js';
+import { computeFpUpperBound } from '../types.js';
+
+/** Full-suite legitimate traffic count from LegitimateTrafficGenerator.generate(). */
+const FULL_SUITE_LEGIT_COUNT = 10168;
 
 export function generateSecurityTable(results: SecurityBenchmarkResult[]): string {
   const header = '| Category | Scenarios | Detected | Rate | Status |';
@@ -86,6 +91,50 @@ export function generateVerdictTable(suite: BenchmarkSuiteResult): string {
   return [header, sep, ...rows].join('\n');
 }
 
+export function generateMethodologySection(): string {
+  return [
+    '## Methodology',
+    '',
+    'MCP-Guard\'s interceptor pipeline performs deterministic checks — regex pattern matching (PII), ' +
+    'hash/set lookups (permissions, denied tools), counter checks (rate limits), and policy evaluation ' +
+    '(sampling guard). These are O(1) or O(n) operations where n is the number of patterns (~20), ' +
+    'completing in microseconds. This detection scope explains the results: sub-millisecond latency, ' +
+    'high detection on in-scope attacks, and low false positives are *consistent with each other* — ' +
+    'the same profile you\'d expect from a firewall or rate limiter, not from ML inference.',
+    '',
+    '**Scenario generation:** 10 attack categories × combinatorial axes (tools × servers × techniques × ' +
+    'evasion variants) producing 4,500+ unique attack payloads. All scenarios are programmatically generated, ' +
+    'not hand-crafted or production-sampled.',
+    '',
+    '**Self-testing transparency:** This benchmark tests MCP-Guard against its own generated scenarios. ' +
+    'We acknowledge this openly. Mitigations: (1) every category generator has expected-decision spot-checks ' +
+    'in unit tests, (2) the audit integrity verifier confirms no raw PII leaks into logs, (3) detection rates ' +
+    'show natural variation (92–100%) because generators include genuinely hard cases, (4) the entire suite is ' +
+    'open-source — `pnpm benchmark` reproduces everything.',
+    '',
+    '**What this does NOT test:** LLM-level prompt injection, semantic attacks (encoded PII that doesn\'t match ' +
+    'regex patterns), application-logic exploits, timing side-channels, network-layer attacks (MITM, DNS rebinding).',
+    '',
+    'For full methodology, coverage gap analysis against [MCPSecBench](https://arxiv.org/abs/2508.13220) and ' +
+    '[MSB](https://arxiv.org/abs/2510.15994), and statistical interpretation, see ' +
+    '[docs/benchmark-methodology.md](../../docs/benchmark-methodology.md).',
+    '',
+  ].join('\n');
+}
+
+function formatDiversityStats(metadata: LegitimateTrafficMetadata): string[] {
+  const lines: string[] = [
+    `- Unique servers: ${metadata.uniqueServers}`,
+    `- Unique tools: ${metadata.uniqueTools}`,
+    `- Near-PII edge cases: ${metadata.nearPiiEdgeCases}`,
+    '- Request types:',
+  ];
+  for (const cat of metadata.requestCategories) {
+    lines.push(`  - ${cat.name}: ${cat.count}`);
+  }
+  return lines;
+}
+
 export function generateFullReport(suite: BenchmarkSuiteResult): string {
   const sections: string[] = [
     `# MCP-Guard Benchmark Report`,
@@ -95,6 +144,8 @@ export function generateFullReport(suite: BenchmarkSuiteResult): string {
   ];
 
   sections.push('## Verdict', '', generateVerdictTable(suite), '');
+
+  sections.push(generateMethodologySection());
 
   if (suite.security) {
     sections.push(
@@ -108,16 +159,42 @@ export function generateFullReport(suite: BenchmarkSuiteResult): string {
   }
 
   if (suite.legitimate) {
-    sections.push(
+    const fpLine = suite.legitimate.fpUpperBound95 !== undefined
+      ? `- FP rate: ${(suite.legitimate.falsePositiveRate * 100).toFixed(3)}% (95% CI upper bound: ${(suite.legitimate.fpUpperBound95 * 100).toFixed(2)}%)`
+      : `- FP rate: ${(suite.legitimate.falsePositiveRate * 100).toFixed(3)}%`;
+
+    // Only show the full-suite comparison note when running a smaller sample (e.g., quick mode).
+    // < 5000 distinguishes quick mode (~500) from full suite (~10168).
+    const fpUpper = suite.legitimate.fpUpperBound95;
+    const isQuickMode = fpUpper !== undefined && suite.legitimate.total < 5000;
+
+    const fpLines = [
       '## False Positives',
       '',
       '![False Positive Rate](../charts/false-positive.svg)',
       '',
       `- Total requests: ${suite.legitimate.total}`,
       `- False positives: ${suite.legitimate.falsePositives}`,
-      `- FP rate: ${(suite.legitimate.falsePositiveRate * 100).toFixed(3)}%`,
-      '',
-    );
+      fpLine,
+    ];
+    if (isQuickMode) {
+      const fullSuiteBound = (computeFpUpperBound(0, FULL_SUITE_LEGIT_COUNT) * 100).toFixed(2);
+      fpLines.push(
+        '',
+        `> CI width depends on sample size. This run used ${suite.legitimate.total} requests (upper bound ${(fpUpper * 100).toFixed(2)}%). The full suite (${FULL_SUITE_LEGIT_COUNT.toLocaleString()} requests) gives <${fullSuiteBound}%.`,
+      );
+    }
+    fpLines.push('');
+    sections.push(...fpLines);
+
+    if (suite.legitimate.metadata) {
+      sections.push(
+        '### Legitimate Traffic Diversity',
+        '',
+        ...formatDiversityStats(suite.legitimate.metadata),
+        '',
+      );
+    }
   }
 
   if (suite.performance) {

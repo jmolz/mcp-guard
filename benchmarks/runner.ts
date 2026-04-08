@@ -53,7 +53,14 @@ function printSecuritySummary(results: SecurityBenchmarkResult[]): void {
 function printLegitSummary(result: LegitimateTrafficResult): void {
   console.log(`\n  Total requests:    ${result.total}`);
   console.log(`  False positives:   ${result.falsePositives}`);
-  console.log(`  FP rate:           ${(result.falsePositiveRate * 100).toFixed(3)}%`);
+  const fpRateStr = (result.falsePositiveRate * 100).toFixed(3);
+  const ciStr = result.fpUpperBound95 !== undefined
+    ? ` (95% CI <${(result.fpUpperBound95 * 100).toFixed(2)}%)`
+    : '';
+  console.log(`  FP rate:           ${fpRateStr}%${ciStr}`);
+  if (result.metadata) {
+    console.log(`  Diversity:         ${result.metadata.uniqueServers} servers, ${result.metadata.uniqueTools} tools, ${result.metadata.nearPiiEdgeCases} near-PII edge cases`);
+  }
 }
 
 function printPerfSummary(result: PerformanceBenchmarkResult): void {
@@ -98,7 +105,11 @@ function printVerdict(
   if (legitimate) {
     const pass = legitimate.falsePositiveRate < 0.001;
     if (!pass) allPass = false;
-    console.log(`  FP rate:        ${(legitimate.falsePositiveRate * 100).toFixed(3)}% ${pass ? 'PASS' : 'FAIL'} (target: <0.1%)`);
+    const fpRateStr = (legitimate.falsePositiveRate * 100).toFixed(3);
+    const ciStr = legitimate.fpUpperBound95 !== undefined
+      ? ` (95% CI <${(legitimate.fpUpperBound95 * 100).toFixed(2)}%)`
+      : '';
+    console.log(`  FP rate:        ${fpRateStr}%${ciStr} ${pass ? 'PASS' : 'FAIL'} (target: <0.1%)`);
   }
 
   if (performance) {

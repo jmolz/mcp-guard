@@ -100,6 +100,17 @@ After writing `latest.json`, the runner calls `generateReport(result)` from `ben
 
 Skip with `--no-report` flag. Charts use template-literal SVG (no external dependencies). Tests in `tests/benchmarks/report.test.ts`.
 
+### Credibility Reporting
+
+The report system uses statistical rigor to avoid misleading claims:
+
+- **Confidence intervals**: FP rate uses `computeFpUpperBound()` from `types.ts`. For zero FP, uses Rule of Three (3/n). For nonzero, uses Wilson score interval. The function guards edge cases: returns 1 for `total=0`, `observed > total`, and caps Rule of Three at 1.0 for tiny `n`.
+- **FP card SVG**: Shows "0 observed" with CI subtitle instead of bare "0.000%" when FP=0. Falls back to percentage display when FP > 0.
+- **Methodology section**: `generateMethodologySection()` in `table-generator.ts` produces a static summary inserted between Verdict and Security Detection in REPORT.md. The full methodology lives in `docs/benchmark-methodology.md`.
+- **Quick-mode CI note**: When `total < 5000` (quick mode), REPORT.md includes a blockquote explaining that CI width depends on sample size, with full-suite comparison. Derived from `FULL_SUITE_LEGIT_COUNT` constant and `computeFpUpperBound()` — not hardcoded.
+- **Diversity metadata**: `LegitimateTrafficMetadata` captures unique servers, tools, near-PII edge cases, and request type breakdown. Computed in `run-legitimate.ts`. Near-PII count uses `NEAR_PII_TEXTS.length` from the generator (not description string-matching).
+- **Console output**: Both `printLegitSummary()` and `printVerdict()` in `runner.ts` display the CI alongside the FP rate.
+
 ## Runner Exit Code and Thresholds
 
 The runner exits non-zero when ANY threshold is breached. Default thresholds: detection rate >= 95%, FP rate < 0.1%, p50 < 5ms, audit integrity passed.
@@ -113,6 +124,6 @@ The detection threshold is configurable via `--min-detection <rate>`:
 
 - Legitimate scenario request params must contain **zero PII** at any confidence level
 - Mock server responses called by legitimate traffic must also be PII-free (no emails, phones, SSNs in tool responses)
-- Use `SAFE_TEXTS` and `NEAR_PII_TEXTS` arrays — every entry must be verified against the regex detector
+- Use `SAFE_TEXTS` and `NEAR_PII_TEXTS` arrays (both in `legitimate/generator.ts`, `NEAR_PII_TEXTS` is exported) — every entry must be verified against the regex detector
 - Avoid numbers with 10+ consecutive digits (matches phone regex)
 - The `_benchmark_pii` tool is for security benchmarks only — never include it in legitimate traffic

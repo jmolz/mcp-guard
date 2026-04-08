@@ -5,6 +5,7 @@ import type {
   LegitimateTrafficResult,
   BenchmarkSuiteResult,
 } from '../../benchmarks/types.js';
+import { computeFpUpperBound } from '../../benchmarks/types.js';
 import {
   generateSecurityChart,
   generateLatencyChart,
@@ -94,6 +95,36 @@ describe('chart generator', () => {
     expect(svg).toContain('0.010%');
     expect(svg).toContain('PASS');
   });
+
+  it('generates FP card with CI text when fpUpperBound95 is provided and FP=0', () => {
+    const zeroFpFixture: LegitimateTrafficResult = {
+      total: 10168,
+      passed: 10168,
+      falsePositives: 0,
+      falsePositiveRate: 0,
+      scenarios: [],
+    };
+    const svg = generateFalsePositiveCard(zeroFpFixture, 0.000295);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('0 observed');
+    expect(svg).toContain('95% CI');
+    expect(svg).toContain('0.03%');
+    expect(svg).not.toContain('0.000%');
+  });
+
+  it('generates FP card with percentage (not CI) when FP > 0 even if fpUpperBound95 provided', () => {
+    const nonZeroFpFixture: LegitimateTrafficResult = {
+      total: 10000,
+      passed: 9999,
+      falsePositives: 1,
+      falsePositiveRate: 0.0001,
+      scenarios: [],
+    };
+    const svg = generateFalsePositiveCard(nonZeroFpFixture, 0.00056);
+    expect(svg).toContain('0.010%');
+    expect(svg).not.toContain('0 observed');
+    expect(svg).not.toContain('95% CI');
+  });
 });
 
 describe('table generator', () => {
@@ -148,5 +179,93 @@ describe('table generator', () => {
     expect(report).toContain('## Security Detection');
     expect(report).not.toContain('## Performance');
     expect(report).not.toContain('## False Positives');
+  });
+
+  it('includes Methodology section in full report', () => {
+    const report = generateFullReport(suiteFixture);
+    expect(report).toContain('## Methodology');
+    // Methodology should appear between Verdict and Security Detection
+    const verdictIdx = report.indexOf('## Verdict');
+    const methodIdx = report.indexOf('## Methodology');
+    const securityIdx = report.indexOf('## Security Detection');
+    expect(methodIdx).toBeGreaterThan(verdictIdx);
+    expect(methodIdx).toBeLessThan(securityIdx);
+  });
+
+  it('shows CI in FP section when fpUpperBound95 is present', () => {
+    const suiteWithCi: BenchmarkSuiteResult = {
+      ...suiteFixture,
+      legitimate: {
+        ...legitimateFixture,
+        falsePositives: 0,
+        falsePositiveRate: 0,
+        fpUpperBound95: 0.000295,
+      },
+    };
+    const report = generateFullReport(suiteWithCi);
+    expect(report).toContain('95% CI');
+    expect(report).toContain('0.03%');
+  });
+
+  it('shows quick-mode CI note when total < 5000', () => {
+    const quickSuite: BenchmarkSuiteResult = {
+      ...suiteFixture,
+      legitimate: {
+        total: 500,
+        passed: 500,
+        falsePositives: 0,
+        falsePositiveRate: 0,
+        fpUpperBound95: 0.006,
+        scenarios: [],
+      },
+    };
+    const report = generateFullReport(quickSuite);
+    expect(report).toContain('CI width depends on sample size');
+    expect(report).toContain('500 requests');
+    expect(report).toContain('10,168');
+  });
+
+  it('does not show quick-mode CI note for full suite', () => {
+    const fullSuite: BenchmarkSuiteResult = {
+      ...suiteFixture,
+      legitimate: {
+        total: 10168,
+        passed: 10168,
+        falsePositives: 0,
+        falsePositiveRate: 0,
+        fpUpperBound95: 0.000295,
+        scenarios: [],
+      },
+    };
+    const report = generateFullReport(fullSuite);
+    expect(report).not.toContain('CI width depends on sample size');
+  });
+});
+
+describe('computeFpUpperBound', () => {
+  it('returns ~0.000295 for zero observed in 10168 trials (Rule of Three)', () => {
+    const result = computeFpUpperBound(0, 10168);
+    expect(result).toBeCloseTo(3 / 10168, 6);
+    expect(result).toBeCloseTo(0.000295, 4);
+  });
+
+  it('returns positive number greater than p-hat for nonzero observed', () => {
+    const result = computeFpUpperBound(1, 10168);
+    expect(result).toBeGreaterThan(1 / 10168);
+    expect(result).toBeGreaterThan(0);
+    expect(result).toBeLessThan(0.01); // sanity: well under 1%
+  });
+
+  it('returns 1 for zero total', () => {
+    expect(computeFpUpperBound(0, 0)).toBe(1);
+  });
+
+  it('caps at 1.0 for very small n where Rule of Three would exceed 100%', () => {
+    expect(computeFpUpperBound(0, 1)).toBeLessThanOrEqual(1);
+    expect(computeFpUpperBound(0, 2)).toBeLessThanOrEqual(1);
+  });
+
+  it('returns 1 when observed > total (degenerate input)', () => {
+    expect(computeFpUpperBound(10, 5)).toBe(1);
   });
 });

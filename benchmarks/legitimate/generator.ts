@@ -139,7 +139,7 @@ const SAFE_TEXTS = [
  * - AKIA + 16 uppercase alphanumeric (matches AWS key)
  * - ghp_ + 36 alphanumeric (matches GitHub token)
  */
-const NEAR_PII_TEXTS = [
+export const NEAR_PII_TEXTS = [
   'Zip code 90210 is in Beverly Hills',
   'Version 1.2.3.4 released today',
   'Error code 12345 returned by API',

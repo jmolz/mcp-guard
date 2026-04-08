@@ -59,6 +59,14 @@ export interface SecurityBenchmarkResult {
   scenarios: ScenarioResult[];
 }
 
+/** Diversity metadata for legitimate traffic — used in methodology reporting. */
+export interface LegitimateTrafficMetadata {
+  uniqueServers: number;
+  uniqueTools: number;
+  nearPiiEdgeCases: number;
+  requestCategories: Array<{ name: string; count: number }>;
+}
+
 /** Results from legitimate traffic testing. */
 export interface LegitimateTrafficResult {
   total: number;
@@ -66,6 +74,27 @@ export interface LegitimateTrafficResult {
   falsePositives: number;
   falsePositiveRate: number;
   scenarios: ScenarioResult[];
+  metadata?: LegitimateTrafficMetadata;
+  /** Rule of Three: 95% CI upper bound for FP rate. */
+  fpUpperBound95?: number;
+}
+
+/**
+ * Compute the 95% CI upper bound for a proportion.
+ * When observed = 0, uses Rule of Three (3/n).
+ * When observed > 0, uses Wilson score interval.
+ */
+export function computeFpUpperBound(observed: number, total: number): number {
+  if (total === 0) return 1;
+  if (observed > total) return 1;
+  if (observed === 0) return Math.min(1, 3 / total);
+  // Wilson score interval upper bound for 95% CI
+  const z = 1.96;
+  const p = observed / total;
+  const denominator = 1 + (z * z) / total;
+  const center = p + (z * z) / (2 * total);
+  const spread = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * total)) / total);
+  return (center + spread) / denominator;
 }
 
 /** Latency percentile statistics. */

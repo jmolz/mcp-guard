@@ -91,14 +91,7 @@ Config merge uses **floor-based semantics**: personal configs can restrict but n
 
 ## Benchmark Results
 
-The benchmark suite tests 7,095 attack scenarios across 10 categories and 10,168 legitimate requests.
-
-| Metric | Result | Target | Status |
-|--------|--------|--------|--------|
-| Detection rate | 97.0% | >95% | Pass |
-| False positive rate | 0.000% | <0.1% | Pass |
-| Audit integrity | Pass | No raw PII in logs | Pass |
-| p50 latency overhead | 0.17ms | <5ms | Pass |
+The benchmark suite is open-source and fully reproducible (`pnpm benchmark`). It tests MCP-Guard's deterministic interceptor pipeline — policy enforcement, pattern matching, and access control — against 7,095 programmatically generated attack scenarios across 10 categories and 10,168 legitimate requests. See [Benchmark Methodology](docs/benchmark-methodology.md) for threat model, statistical interpretation, and known limitations.
 
 ### Per-Category Detection
 
@@ -114,6 +107,23 @@ The benchmark suite tests 7,095 attack scenarios across 10 categories and 10,168
 | PII evasion | 94.7% | Pass |
 | PII request leak | 93.8% | Pass |
 | Rate limit evasion | 92.4% | Pass |
+
+### Summary
+
+| Metric | Result | Target | Status |
+|--------|--------|--------|--------|
+| Detection rate | 97.0% | >95% | Pass |
+| False positive rate | 0 in 10,168 requests (<0.03% at 95% CI) | <0.1% | Pass |
+| Audit integrity | No raw PII in logs | Pass | Pass |
+| p50 latency overhead | 0.17ms (deterministic pipeline, no network hop) | <5ms | Pass |
+
+### Limitations
+
+- Tested against own generated scenarios, not an independent corpus — [methodology explains mitigations](docs/benchmark-methodology.md#self-testing-honesty-about-our-own-test-suite)
+- Regex PII detection misses semantic encoding (spelling out digits, splitting across fields)
+- Does not address LLM-level prompt injection — complementary tools like those evaluated by [MCPSecBench](https://arxiv.org/abs/2508.13220) operate at the agent layer
+- No coverage for network-layer attacks (MITM, DNS rebinding)
+- ML-based detection planned but not yet implemented
 
 > Full-suite results from `pnpm benchmark`. Quick mode (`pnpm benchmark:quick`) uses stratified sampling and typically reports ~89-93% detection. See [latest report](benchmarks/results/REPORT.md) for charts.
 

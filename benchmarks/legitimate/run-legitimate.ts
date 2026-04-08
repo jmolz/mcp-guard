@@ -9,8 +9,9 @@ import { loadConfig } from '../../src/config/loader.js';
 import { startDaemon, type DaemonHandle } from '../../src/daemon/index.js';
 import { ensureDaemonKey, readDaemonKey } from '../../src/identity/daemon-key.js';
 import { connectSocket, writeFramed, readFramed } from '../../tests/fixtures/framing.js';
-import type { GeneratorOptions, LegitimateTrafficResult, ScenarioResult } from '../types.js';
-import { LegitimateTrafficGenerator } from './generator.js';
+import type { GeneratorOptions, LegitimateTrafficResult, LegitimateTrafficMetadata, ScenarioResult } from '../types.js';
+import { computeFpUpperBound } from '../types.js';
+import { LegitimateTrafficGenerator, NEAR_PII_TEXTS } from './generator.js';
 
 interface McpResponse {
   type: string;
@@ -109,6 +110,33 @@ export async function runLegitimateTraffic(
     const total = results.length;
     const fpRate = total > 0 ? falsePositives / total : 0;
 
+    // Compute diversity metadata from scenario set
+    const servers = new Set<string>();
+    const tools = new Set<string>();
+    const methodCounts = new Map<string, number>();
+    for (const r of results) {
+      servers.add(r.scenario.server);
+      if (r.scenario.message.method === 'tools/call') {
+        const toolName = (r.scenario.message.params as Record<string, unknown>)?.name;
+        if (typeof toolName === 'string') tools.add(toolName);
+      }
+      const method = r.scenario.message.method;
+      methodCounts.set(method, (methodCounts.get(method) ?? 0) + 1);
+    }
+    // Near-PII count derived from generator constant, not description string-matching
+    const nearPiiCount = NEAR_PII_TEXTS.length;
+
+    const metadata: LegitimateTrafficMetadata = {
+      uniqueServers: servers.size,
+      uniqueTools: tools.size,
+      nearPiiEdgeCases: nearPiiCount,
+      requestCategories: [...methodCounts.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count),
+    };
+
+    const fpUpperBound95 = computeFpUpperBound(falsePositives, total);
+
     console.log(`  Completed: ${total} requests, ${falsePositives} false positives (${(fpRate * 100).toFixed(3)}%)`);
 
     return {
@@ -117,6 +145,8 @@ export async function runLegitimateTraffic(
       falsePositives,
       falsePositiveRate: fpRate,
       scenarios: results,
+      metadata,
+      fpUpperBound95,
     };
   } finally {
     if (daemonHandle) {

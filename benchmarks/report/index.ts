@@ -36,7 +36,7 @@ export async function generateReport(result: BenchmarkSuiteResult): Promise<void
   }
 
   if (result.legitimate) {
-    const fpSvg = generateFalsePositiveCard(result.legitimate);
+    const fpSvg = generateFalsePositiveCard(result.legitimate, result.legitimate.fpUpperBound95);
     await writeFile('benchmarks/charts/false-positive.svg', fpSvg);
     filesWritten.push('benchmarks/charts/false-positive.svg');
   }

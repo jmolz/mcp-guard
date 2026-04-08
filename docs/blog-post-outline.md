@@ -25,21 +25,25 @@
 - Diagram: data flow from client to upstream
 
 ## 5. Benchmark Methodology
-- 8 mock server archetypes covering real-world MCP usage patterns
-- 10 attack categories with 4,500+ scenarios generated combinatorially
-- Categories: permission bypass, PII evasion, rate limit evasion, resource traversal, etc.
-- 10,000+ legitimate requests for false positive measurement
-- Performance: latency overhead, concurrency scaling, throughput
-- Reference: `benchmarks/results/REPORT.md` for full data
+- Lead with: "We open-sourced our entire benchmark suite — `pnpm benchmark` reproduces everything"
+- Explain the deterministic pipeline architecture: regex matching, hash lookups, policy evaluation
+- Frame why sub-ms latency + high detection + zero FP is consistent, not suspicious
+- Threat-model positioning: MCP-Guard operates at the transport layer; MCPSecBench and MSB (ICLR 2026) test agent-layer resilience — complementary, not competing
+- Self-testing transparency: acknowledge testing against own generators, explain mitigations (spot-check tests, audit integrity verification, natural result variation, full open-source reproducibility)
+- Coverage gap analysis: map MCPSecBench's 17 attack types to our 10 categories, show gaps honestly
+- Reference: `docs/benchmark-methodology.md` for full methodology, `benchmarks/results/REPORT.md` for data
 
 ## 6. Results
-- Overall detection rate: >95%
-- Per-category breakdown (embed security table from report)
-- False positive rate: <0.1%
-- Honest limitations: what we catch and what we don't
-  - Semantic attacks (encoded PII that doesn't match regex patterns)
-  - Application-level logic exploits
-  - Timing-based side channels
+- Per-category breakdown as centerpiece (embed security table — the 92-100% range with natural variation is the most credible element)
+- Overall detection rate: 97% across 7,095 scenarios
+- Zero false positives in 10K+ trials (95% CI <0.03%) — explain Rule of Three for zero-event confidence intervals
+- Audit integrity: no raw PII in logs (structural guarantee)
+- **What We Don't Catch** (prominent, not buried):
+  - Regex PII misses semantic encoding (spelling out digits, splitting across fields)
+  - No LLM-level prompt injection resistance
+  - No network-layer attack coverage (MITM, DNS rebinding)
+  - Tested against own suite, not independent corpus (see §5 mitigations)
+  - ML-based detection planned but not yet implemented
 
 ## 7. Performance
 - p50 latency overhead: <5ms
