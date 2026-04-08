@@ -73,16 +73,6 @@ The daemon auto-starts on first connection.
 
 ![MCP-Guard Architecture](docs/assets/architecture.svg)
 
-```
-Client -> Bridge (stdio) -> Daemon (Unix socket) -> Upstream MCP Server
-                                  |
-                            Interceptor Pipeline
-                     Auth -> Rate Limit -> Permissions
-                       -> Sampling Guard -> PII Detect
-                                  |
-                             Audit Tap
-```
-
 - **Daemon** — Long-running process. Manages upstream connections, runs the interceptor pipeline, owns the SQLite database, serves the health dashboard.
 - **Bridge** — Thin stdio relay (~50 lines). Zero policy logic. Structurally fail-closed.
 - **CLI** — Stateless commands for management and configuration.
