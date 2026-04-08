@@ -36,4 +36,5 @@ Thumbs.db
 .claude/templates/
 .claude/rules/_example-frontend.md
 .claude/settings.local.json
+.claude/projects/
 .claude/.DS_Store
