@@ -54,7 +54,7 @@ daemon:
     expect(res.status).toBe(200);
     const body = await res.json() as HealthResponse;
     expect(body.status).toBe('healthy');
-    expect(body.version).toBe('0.1.0');
+    expect(body.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(body.database).toBe('ok');
     expect(body.servers).toHaveProperty('mock');
     expect(typeof body.uptime_seconds).toBe('number');

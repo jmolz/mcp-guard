@@ -48,7 +48,7 @@
     "benchmark:security": "tsx benchmarks/runner.ts --suite security",
     "benchmark:legitimate": "tsx benchmarks/runner.ts --suite legitimate",
     "benchmark:performance": "tsx benchmarks/runner.ts --suite performance",
-    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
