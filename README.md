@@ -27,7 +27,7 @@ MCP-Guard sits between your MCP client (Cursor, Claude Desktop, Claude Code, VS 
 ## Quick Start
 
 ```bash
-npm install -g mcp-guard
+npm install -g @jacobmolz/mcpguard
 ```
 
 ### Option A: Auto-discover existing configs
