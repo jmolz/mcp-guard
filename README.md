@@ -6,7 +6,7 @@
 
 Security proxy daemon for MCP servers — adds authentication, rate limiting, PII detection, permission scoping, and audit logging without modifying upstream servers.
 
-![MCP-Guard Architecture](docs/assets/architecture.svg)
+![MCP-Guard Demo](docs/assets/demo.gif)
 
 ## What is this?
 
@@ -70,6 +70,8 @@ Point your client at MCP-Guard instead of the upstream server:
 The daemon auto-starts on first connection.
 
 ## Architecture
+
+![MCP-Guard Architecture](docs/assets/architecture.svg)
 
 ```
 Client -> Bridge (stdio) -> Daemon (Unix socket) -> Upstream MCP Server
