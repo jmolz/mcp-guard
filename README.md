@@ -91,32 +91,31 @@ Config merge uses **floor-based semantics**: personal configs can restrict but n
 
 ## Benchmark Results
 
-The benchmark suite tests against 4,500+ attack scenarios across 10 categories and 10,000+ legitimate requests.
+The benchmark suite tests 7,095 attack scenarios across 10 categories and 10,168 legitimate requests.
 
 | Metric | Result | Target | Status |
 |--------|--------|--------|--------|
-| Detection rate | 92.5% | >95% | In progress |
+| Detection rate | 97.0% | >95% | Pass |
 | False positive rate | 0.000% | <0.1% | Pass |
-| p50 latency overhead | 0.19ms | <5ms | Pass |
-| p99 latency overhead | 1.22ms | — | — |
-| Throughput | 7,042 req/s | — | — |
+| Audit integrity | Pass | No raw PII in logs | Pass |
+| p50 latency overhead | 0.17ms | <5ms | Pass |
 
 ### Per-Category Detection
 
 | Category | Rate | Status |
 |----------|------|--------|
-| Permission bypass | 100% | Pass |
-| PII response leak | 100% | Pass |
-| Sampling injection | 100% | Pass |
-| Config override | 100% | Pass |
-| Capability probe | 96% | Pass |
-| Resource traversal | 94% | In progress |
-| Rate limit evasion | 92% | In progress |
-| PII request leak | 84% | In progress |
-| PII evasion | 82% | In progress |
-| Auth bypass | 80% | In progress |
+| PII response leak | 100.0% | Pass |
+| Auth bypass | 100.0% | Pass |
+| Sampling injection | 100.0% | Pass |
+| Config override | 100.0% | Pass |
+| Permission bypass | 98.9% | Pass |
+| Capability probe | 97.4% | Pass |
+| Resource traversal | 95.4% | Pass |
+| PII evasion | 94.7% | Pass |
+| PII request leak | 93.8% | Pass |
+| Rate limit evasion | 92.4% | Pass |
 
-> Results from quick-mode stratified sample (1,004 scenarios). Full suite numbers may differ. Run `pnpm benchmark` for full results or see [latest report](benchmarks/results/REPORT.md) for charts.
+> Full-suite results from `pnpm benchmark`. Quick mode (`pnpm benchmark:quick`) uses stratified sampling and typically reports ~89-93% detection. See [latest report](benchmarks/results/REPORT.md) for charts.
 
 ## CLI Reference
 

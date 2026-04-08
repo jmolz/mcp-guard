@@ -3,23 +3,23 @@
   <style>text { font-family: system-ui, -apple-system, sans-serif; }</style>
   <text x="400" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e293b">Security Detection Rates</text>
     <text x="192" y="56" text-anchor="end" font-size="12" fill="#334155">rate_limit_evasion</text>
-    <rect x="200" y="40" width="461.1913357400722" height="24" fill="#eab308" rx="3"/>
-    <text x="667.1913357400722" y="56" font-size="12" fill="#64748b">92.2%</text>
+    <rect x="200" y="40" width="462.0938628158845" height="24" fill="#eab308" rx="3"/>
+    <text x="668.0938628158844" y="56" font-size="12" fill="#64748b">92.4%</text>
     <text x="192" y="92" text-anchor="end" font-size="12" fill="#334155">permission_bypass</text>
-    <rect x="200" y="76" width="500" height="24" fill="#22c55e" rx="3"/>
-    <text x="706" y="92" font-size="12" fill="#64748b">100.0%</text>
+    <rect x="200" y="76" width="494.6236559139785" height="24" fill="#22c55e" rx="3"/>
+    <text x="700.6236559139785" y="92" font-size="12" fill="#64748b">98.9%</text>
     <text x="192" y="128" text-anchor="end" font-size="12" fill="#334155">resource_traversal</text>
-    <rect x="200" y="112" width="470" height="24" fill="#eab308" rx="3"/>
-    <text x="676" y="128" font-size="12" fill="#64748b">94.0%</text>
+    <rect x="200" y="112" width="477.23292469352015" height="24" fill="#22c55e" rx="3"/>
+    <text x="683.2329246935201" y="128" font-size="12" fill="#64748b">95.4%</text>
     <text x="192" y="164" text-anchor="end" font-size="12" fill="#334155">pii_request_leak</text>
-    <rect x="200" y="148" width="420" height="24" fill="#ef4444" rx="3"/>
-    <text x="626" y="164" font-size="12" fill="#64748b">84.0%</text>
+    <rect x="200" y="148" width="469.2307692307692" height="24" fill="#eab308" rx="3"/>
+    <text x="675.2307692307693" y="164" font-size="12" fill="#64748b">93.8%</text>
     <text x="192" y="200" text-anchor="end" font-size="12" fill="#334155">pii_response_leak</text>
     <rect x="200" y="184" width="500" height="24" fill="#22c55e" rx="3"/>
     <text x="706" y="200" font-size="12" fill="#64748b">100.0%</text>
     <text x="192" y="236" text-anchor="end" font-size="12" fill="#334155">auth_bypass</text>
-    <rect x="200" y="220" width="400" height="24" fill="#ef4444" rx="3"/>
-    <text x="606" y="236" font-size="12" fill="#64748b">80.0%</text>
+    <rect x="200" y="220" width="500" height="24" fill="#22c55e" rx="3"/>
+    <text x="706" y="236" font-size="12" fill="#64748b">100.0%</text>
     <text x="192" y="272" text-anchor="end" font-size="12" fill="#334155">sampling_injection</text>
     <rect x="200" y="256" width="500" height="24" fill="#22c55e" rx="3"/>
     <text x="706" y="272" font-size="12" fill="#64748b">100.0%</text>
@@ -27,11 +27,11 @@
     <rect x="200" y="292" width="500" height="24" fill="#22c55e" rx="3"/>
     <text x="706" y="308" font-size="12" fill="#64748b">100.0%</text>
     <text x="192" y="344" text-anchor="end" font-size="12" fill="#334155">capability_probe</text>
-    <rect x="200" y="328" width="480" height="24" fill="#22c55e" rx="3"/>
-    <text x="686" y="344" font-size="12" fill="#64748b">96.0%</text>
+    <rect x="200" y="328" width="486.9942196531792" height="24" fill="#22c55e" rx="3"/>
+    <text x="692.9942196531792" y="344" font-size="12" fill="#64748b">97.4%</text>
     <text x="192" y="380" text-anchor="end" font-size="12" fill="#334155">pii_evasion</text>
-    <rect x="200" y="364" width="410" height="24" fill="#ef4444" rx="3"/>
-    <text x="616" y="380" font-size="12" fill="#64748b">82.0%</text>
+    <rect x="200" y="364" width="473.6842105263158" height="24" fill="#eab308" rx="3"/>
+    <text x="679.6842105263158" y="380" font-size="12" fill="#64748b">94.7%</text>
   <line x1="675" y1="32" x2="675" y2="420" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="6,3"/>
   <text x="679" y="426" font-size="10" fill="#ef4444">95% target</text>
 </svg>

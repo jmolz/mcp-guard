@@ -27,9 +27,9 @@ The benchmark suite tests MCP-Guard's interceptor pipeline against 4,500+ attack
 
 ### Expected Decisions
 
-- **Request-side PII redaction is transparent to clients**: The PII interceptor redacts content before forwarding to upstream, but the client receives a normal response. From the benchmark runner's perspective (client side), redact-action PII types result in **PASS**, not MODIFY.
+- **Request-side PII redaction is transparent to clients**: The PII interceptor redacts content before forwarding to upstream, but the client receives a normal response. From the benchmark runner's perspective (client side), redact-action PII types result in **PASS** — unless the mock server echoes the redacted value (see "Mock Server Echo Behavior" below), in which case it's **MODIFY**.
 - **Response-side PII redaction is visible**: The client sees `[REDACTED:type]` markers in the response → **MODIFY**.
-- **PII block types (ssn, credit_card) → BLOCK**. PII redact types (email, phone, aws_key, github_token) → **PASS** on requests, **MODIFY** on responses.
+- **PII block types (ssn, credit_card) → BLOCK**. PII redact types (email, phone, aws_key, github_token) → **PASS** or **MODIFY** on requests (depends on echo), **MODIFY** on responses.
 
 ### Per-Server Denied Tools
 
@@ -39,12 +39,25 @@ Denied tools are per-server, not global. Use `DENIED_TOOLS_PER_SERVER` from `gen
 
 The permissions interceptor converts `*` to `[^/]*` (single-level, not recursive). Multi-level paths like `db://schema/users/passwords` do NOT match `db://schema/*`. Factor this into `resource-traversal` expected decisions.
 
-### Rate Limit State
+### Rate Limit State and Isolation
 
 - Rate limits are keyed by `(server, username, tool)` for per-tool limits and `(server, username)` for server-level RPM.
 - **Burst groups must run FIRST** before other categories to avoid server-level RPM bucket contamination.
 - Use only **one tool per server** for RPM burst testing — multiple burst groups on the same server share the server-level bucket.
 - Each burst group gets its own socket, but they share the daemon's rate-limit store.
+- **Rate limit state must be reset between categories and periodically within categories.** The security runner opens the daemon's SQLite database directly and runs `DELETE FROM rate_limits` before each non-rate-limit category and every 50 scenarios within a category. Without this, PASS-expected scenarios get rate-limited after burst groups deplete the buckets. This was the primary bug causing 55% detection in issue #13.
+- **Legitimate traffic uses a separate config** (`benchmarks/configs/legitimate-benchmark.yaml`) with very high rate limits (100K RPM) to prevent rate limit false positives. The security config has realistic limits (60 RPM) for testing the rate limiter itself.
+
+### Mock Server Echo Behavior
+
+When the PII interceptor redacts request arguments (replacing PII with `[REDACTED:type]`), mock servers that echo their arguments will include `[REDACTED:type]` in the response. `inferDecision()` sees these markers and returns MODIFY. Generators must account for this:
+- **Echoing tools** (arg name matches Zod schema AND handler echoes): `filesystem:read_file:path`, `database:query_sql:query`, `api-client:http_get:url`, etc.
+- **Non-echoing tools** (Zod validation error or no echo): the response is clean → PASS for redact-type PII.
+- Both `pii-request-leak` and `pii-evasion` generators maintain `ECHOING_TOOLS` sets for this.
+
+### Word Boundary Evasion
+
+All PII regexes use `\b` word boundaries. Padding PII with word characters (e.g., `'x'.repeat(10000) + SSN`) eliminates the `\b` match because there's no boundary between two word characters. This is a genuine evasion technique. The `offset-10k` and `offset-50k` techniques in `pii-evasion` expect PASS for this reason.
 
 ### PII Evasion Transforms
 

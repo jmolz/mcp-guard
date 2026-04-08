@@ -3,17 +3,17 @@
   <style>text { font-family: system-ui, -apple-system, sans-serif; }</style>
   <text x="400" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e293b">Latency Distribution</text>
   <line x1="80" y1="340" x2="740" y2="340" stroke="#cbd5e1" stroke-width="1"/>
-    <rect x="121.25" y="330.76833333329887" width="82.5" height="9.23166666670113" fill="#22c55e" rx="3"/>
-    <text x="162.5" y="324.76833333329887" text-anchor="middle" font-size="12" fill="#334155">0.19ms</text>
+    <rect x="121.25" y="331.6141666666287" width="82.5" height="8.385833333371314" fill="#22c55e" rx="3"/>
+    <text x="162.5" y="325.6141666666287" text-anchor="middle" font-size="12" fill="#334155">0.17ms</text>
     <text x="162.5" y="360" text-anchor="middle" font-size="13" fill="#334155">p50</text>
-    <rect x="286.25" y="320.11687500001545" width="82.5" height="19.883124999984524" fill="#eab308" rx="3"/>
-    <text x="327.5" y="314.11687500001545" text-anchor="middle" font-size="12" fill="#334155">0.41ms</text>
+    <rect x="286.25" y="324.5836966666745" width="82.5" height="15.416303333325533" fill="#eab308" rx="3"/>
+    <text x="327.5" y="318.5836966666745" text-anchor="middle" font-size="12" fill="#334155">0.32ms</text>
     <text x="327.5" y="360" text-anchor="middle" font-size="13" fill="#334155">p95</text>
-    <rect x="451.25" y="280.84401166669824" width="82.5" height="59.15598833330175" fill="#ef4444" rx="3"/>
-    <text x="492.5" y="274.84401166669824" text-anchor="middle" font-size="12" fill="#334155">1.22ms</text>
+    <rect x="451.25" y="271.7049999999775" width="82.5" height="68.29500000002251" fill="#ef4444" rx="3"/>
+    <text x="492.5" y="265.7049999999775" text-anchor="middle" font-size="12" fill="#334155">1.41ms</text>
     <text x="492.5" y="360" text-anchor="middle" font-size="13" fill="#334155">p99</text>
-    <rect x="616.25" y="328.4" width="82.5" height="11.6" fill="#3b82f6" rx="3"/>
-    <text x="657.5" y="322.4" text-anchor="middle" font-size="12" fill="#334155">0.24ms</text>
+    <rect x="616.25" y="329.85" width="82.5" height="10.149999999999999" fill="#3b82f6" rx="3"/>
+    <text x="657.5" y="323.85" text-anchor="middle" font-size="12" fill="#334155">0.21ms</text>
     <text x="657.5" y="360" text-anchor="middle" font-size="13" fill="#334155">mean</text>
   <line x1="80" y1="98.33333333333331" x2="740" y2="98.33333333333331" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="6,3"/>
   <text x="744" y="102.33333333333331" font-size="10" fill="#ef4444">5ms target</text>
