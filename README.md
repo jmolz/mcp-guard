@@ -83,7 +83,7 @@ MCP-Guard uses **terminate, inspect, re-originate** — it fully owns both the c
 
 Config merge uses **floor-based semantics**: personal configs can restrict but never relax base policies. `allowed_tools` are intersected, `denied_tools` are unioned, rate limits take the stricter value.
 
-## Why This Matters
+## Why This Matters: MCP Servers Have No Security Layer
 
 ### Without MCP-Guard
 
@@ -113,7 +113,7 @@ MCP-Guard operates at the **MCP protocol layer** — it inspects JSON-RPC messag
 - **LLM prompt injection** — MCP-Guard does not analyze agent intent. Detecting whether an agent was tricked into making a malicious call requires agent-layer defenses.
 - **Model jailbreaking or alignment bypasses** — MCP-Guard does not operate at the model layer. LLM safety is a model-layer concern, not a transport security concern.
 - **Network-layer attacks** (MITM, DNS rebinding, TLS stripping) — MCP-Guard does not replace network security. Use standard network security controls.
-- **Malicious MCP server implementations** — the proxy limits exposure via permissions and PII scanning, but cannot fix a compromised server.
+- **Malicious MCP server implementations** — the proxy limits exposure via permissions and PII scanning, but a compromised server requires remediation at the source.
 
 MCP-Guard is the protocol-layer firewall. It complements agent-layer and network-layer defenses — it doesn't replace them.
 
