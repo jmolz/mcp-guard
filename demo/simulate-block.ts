@@ -4,47 +4,12 @@
  *
  * Usage: npx tsx demo/simulate-block.ts [config-path]
  */
-import { connect, type Socket } from 'node:net';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadConfig } from '../src/config/loader.js';
+import { connectSocket, writeFramed, readFramed } from '../tests/fixtures/framing.js';
 
 const configPath = process.argv[2] ?? 'demo/demo-config.yaml';
-
-function writeFramed(socket: Socket, data: unknown): void {
-  const json = JSON.stringify(data);
-  const payload = Buffer.from(json, 'utf-8');
-  const header = Buffer.alloc(4);
-  header.writeUInt32BE(payload.length, 0);
-  socket.write(Buffer.concat([header, payload]));
-}
-
-function readFramed(socket: Socket, timeout = 10000): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    let buffer = Buffer.alloc(0);
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('Read timeout'));
-    }, timeout);
-
-    function onData(chunk: Buffer) {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (buffer.length >= 4) {
-        const length = buffer.readUInt32BE(0);
-        if (buffer.length >= 4 + length) {
-          cleanup();
-          const json = buffer.subarray(4, 4 + length).toString('utf-8');
-          resolve(JSON.parse(json));
-        }
-      }
-    }
-    function cleanup() {
-      clearTimeout(timer);
-      socket.removeListener('data', onData);
-    }
-    socket.on('data', onData);
-  });
-}
 
 async function main(): Promise<void> {
   const config = await loadConfig(configPath);
@@ -53,11 +18,7 @@ async function main(): Promise<void> {
   const daemonKey = await readFile(keyPath);
 
   // Connect to daemon socket
-  const socket = await new Promise<Socket>((resolve, reject) => {
-    const s = connect(socketPath);
-    s.on('connect', () => resolve(s));
-    s.on('error', reject);
-  });
+  const socket = await connectSocket(socketPath);
 
   // Authenticate
   writeFramed(socket, { type: 'auth', key: daemonKey.toString('hex').trim() });
