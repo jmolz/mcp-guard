@@ -201,7 +201,7 @@ docker compose -f docker/docker-compose.yml up
 ```bash
 pnpm install
 pnpm dev              # Start in dev mode
-pnpm test             # Run tests (360+ across 38 files)
+pnpm test             # Run tests (412 across 38 files)
 pnpm lint             # Lint
 pnpm typecheck        # Type check
 pnpm build            # Production build
