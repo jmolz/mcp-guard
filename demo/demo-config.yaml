@@ -1,22 +1,14 @@
-# MCP-Guard — minimal config
+# MCP-Guard demo config — uses mock servers from benchmarks/
 servers:
-  filesystem:
-    transport: stdio
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-    policy:
-      permissions:
-        denied_tools: ["exec_command", "write_file"]
-      rate_limit:
-        requests_per_minute: 60
-
   database:
     transport: stdio
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-sqlite", "./data.db"]
+    command: ./node_modules/.bin/tsx
+    args: ["benchmarks/mock-servers/database.ts"]
     policy:
       permissions:
         denied_tools: ["drop_table"]
+      rate_limit:
+        requests_per_minute: 60
 
 pii:
   actions:
