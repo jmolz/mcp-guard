@@ -14,7 +14,7 @@
 
 # MCP-Guard
 
-[![CI](https://github.com/jmolz/mcp-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/jmolz/mcp-guard/actions/workflows/ci.yml)
+[![CI](https://github.com/jmolz/m0lz.03/actions/workflows/ci.yml/badge.svg)](https://github.com/jmolz/m0lz.03/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/mcp-guard)](https://www.npmjs.com/package/mcp-guard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
