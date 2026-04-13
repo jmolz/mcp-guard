@@ -5,14 +5,13 @@
 <h1 align="center">m0lz.03</h1>
 
 <p align="center">
-  <strong>MCP-Guard</strong> — Security proxy daemon for MCP servers<br>
+  Security proxy daemon for MCP servers<br>
   Auth, rate limiting, PII detection, permissions, audit logging<br>
   <a href="https://m0lz.dev/writing/mcp-guard">m0lz.dev/writing/mcp-guard</a>
 </p>
 
 ---
 
-# MCP-Guard
 
 [![CI](https://github.com/jmolz/m0lz.03/actions/workflows/ci.yml/badge.svg)](https://github.com/jmolz/m0lz.03/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/mcp-guard)](https://www.npmjs.com/package/mcp-guard)
@@ -20,13 +19,13 @@
 
 Security proxy daemon for MCP servers — adds authentication, rate limiting, PII detection, permission scoping, and audit logging without modifying upstream servers.
 
-![MCP-Guard Demo](docs/assets/demo.gif)
+![m0lz.03 Demo](docs/assets/demo.gif)
 
 ## What is this?
 
 MCP (Model Context Protocol) servers give AI coding tools access to files, databases, APIs, and more. But they have no built-in authentication, no audit trail, and no way to restrict which tools an agent can call.
 
-MCP-Guard sits between your MCP client (Cursor, Claude Desktop, Claude Code, VS Code) and your MCP servers. It terminates the client connection, inspects every message through a security pipeline, then re-originates the request to the upstream server. Nothing passes through uninspected.
+m0lz.03 sits between your MCP client (Cursor, Claude Desktop, Claude Code, VS Code) and your MCP servers. It terminates the client connection, inspects every message through a security pipeline, then re-originates the request to the upstream server. Nothing passes through uninspected.
 
 ## Key Features
 
@@ -68,7 +67,7 @@ servers:
 
 ### Update your MCP client
 
-Point your client at MCP-Guard instead of the upstream server:
+Point your client at m0lz.03 instead of the upstream server:
 
 ```json
 {
@@ -85,7 +84,7 @@ The daemon auto-starts on first connection.
 
 ## Architecture
 
-![MCP-Guard Architecture](docs/assets/architecture.svg)
+![m0lz.03 Architecture](docs/assets/architecture.svg)
 
 - **Daemon** — Long-running process. Manages upstream connections, runs the interceptor pipeline, owns the SQLite database, serves the health dashboard.
 - **Bridge** — Thin stdio relay (~50 lines). Zero policy logic. Structurally fail-closed.
@@ -93,13 +92,13 @@ The daemon auto-starts on first connection.
 
 ### Security Model
 
-MCP-Guard uses **terminate, inspect, re-originate** — it fully owns both the client and upstream connections. The interceptor pipeline is fail-closed: any error blocks the request. The audit tap is structural (wired outside the pipeline) and cannot be bypassed.
+m0lz.03 uses **terminate, inspect, re-originate** — it fully owns both the client and upstream connections. The interceptor pipeline is fail-closed: any error blocks the request. The audit tap is structural (wired outside the pipeline) and cannot be bypassed.
 
 Config merge uses **floor-based semantics**: personal configs can restrict but never relax base policies. `allowed_tools` are intersected, `denied_tools` are unioned, rate limits take the stricter value.
 
 ## Why This Matters: MCP Servers Have No Security Layer
 
-### Without MCP-Guard
+### Without m0lz.03
 
 ```
 Agent asks to read /home/user/.env via filesystem MCP server
@@ -108,11 +107,11 @@ Agent asks to read /home/user/.env via filesystem MCP server
   → No authentication. No audit trail. No one knows it happened.
 ```
 
-### With MCP-Guard
+### With m0lz.03
 
 ```
 Agent asks to read /home/user/.env via filesystem MCP server
-  → MCP-Guard intercepts the response
+  → m0lz.03 intercepts the response
   → PII detector matches AWS key pattern → BLOCK
   → Audit log records: blocked response, server=filesystem, pii_type=aws_key
   → Agent receives: "Request blocked by security policy"
@@ -120,20 +119,20 @@ Agent asks to read /home/user/.env via filesystem MCP server
 
 ## Scope
 
-MCP-Guard operates at the **MCP protocol layer** — it inspects JSON-RPC messages between client and server. This is a deliberate architectural boundary.
+m0lz.03 operates at the **MCP protocol layer** — it inspects JSON-RPC messages between client and server. This is a deliberate architectural boundary.
 
-**What MCP-Guard does not address:**
+**What m0lz.03 does not address:**
 
-- **LLM prompt injection** — MCP-Guard does not analyze agent intent. Detecting whether an agent was tricked into making a malicious call requires agent-layer defenses.
-- **Model jailbreaking or alignment bypasses** — MCP-Guard does not operate at the model layer. LLM safety is a model-layer concern, not a transport security concern.
-- **Network-layer attacks** (MITM, DNS rebinding, TLS stripping) — MCP-Guard does not replace network security. Use standard network security controls.
+- **LLM prompt injection** — m0lz.03 does not analyze agent intent. Detecting whether an agent was tricked into making a malicious call requires agent-layer defenses.
+- **Model jailbreaking or alignment bypasses** — m0lz.03 does not operate at the model layer. LLM safety is a model-layer concern, not a transport security concern.
+- **Network-layer attacks** (MITM, DNS rebinding, TLS stripping) — m0lz.03 does not replace network security. Use standard network security controls.
 - **Malicious MCP server implementations** — the proxy limits exposure via permissions and PII scanning, but a compromised server requires remediation at the source.
 
-MCP-Guard is the protocol-layer firewall. It complements agent-layer and network-layer defenses — it doesn't replace them.
+m0lz.03 is the protocol-layer firewall. It complements agent-layer and network-layer defenses — it doesn't replace them.
 
 ## Benchmark Results
 
-The benchmark suite is open-source and fully reproducible (`pnpm benchmark`). It tests MCP-Guard's deterministic interceptor pipeline — policy enforcement, pattern matching, and access control — against 7,095 programmatically generated attack scenarios across 10 categories and 10,168 legitimate requests. See [Benchmark Methodology](docs/benchmark-methodology.md) for threat model, statistical interpretation, and known limitations.
+The benchmark suite is open-source and fully reproducible (`pnpm benchmark`). It tests m0lz.03's deterministic interceptor pipeline — policy enforcement, pattern matching, and access control — against 7,095 programmatically generated attack scenarios across 10 categories and 10,168 legitimate requests. See [Benchmark Methodology](docs/benchmark-methodology.md) for threat model, statistical interpretation, and known limitations.
 
 ### Per-Category Detection
 
