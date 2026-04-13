@@ -1,3 +1,17 @@
+<p align="center">
+  <img src="branch-mark.svg" width="48" height="48" alt="m0lz.03 branch mark — mcp-guard variant">
+</p>
+
+<h1 align="center">m0lz.03</h1>
+
+<p align="center">
+  <strong>MCP-Guard</strong> — Security proxy daemon for MCP servers<br>
+  Auth, rate limiting, PII detection, permissions, audit logging<br>
+  <a href="https://m0lz.dev/writing/mcp-guard">m0lz.dev/writing/mcp-guard</a>
+</p>
+
+---
+
 # MCP-Guard
 
 [![CI](https://github.com/jmolz/mcp-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/jmolz/mcp-guard/actions/workflows/ci.yml)
